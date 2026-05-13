@@ -44,7 +44,7 @@ export function buildTransactionFilters(req) {
   const params = [];
 
   if (req.user.role === "cashier") {
-    where.push("t.status = 'SUCCESS'");
+    where.push("COALESCE(t.status, 'SUCCESS') = 'SUCCESS'");
   }
 
   if (date && (startDate || endDate)) {
@@ -132,11 +132,11 @@ export async function fetchDailySalesSummary({ startDate, endDate }) {
       DATE_FORMAT(t.date, '%Y-%m-%d') AS summary_date,
       COUNT(*) AS transaction_count,
       COALESCE(SUM(t.total), 0) AS total_sales,
-      COALESCE(SUM(CASE WHEN t.payment_method = 'cash' THEN t.total ELSE 0 END), 0) AS total_cash,
-      COALESCE(SUM(CASE WHEN t.payment_method = 'qris' THEN t.total ELSE 0 END), 0) AS total_qris
+      COALESCE(SUM(CASE WHEN LOWER(t.payment_method) = 'cash' THEN t.total ELSE 0 END), 0) AS total_cash,
+      COALESCE(SUM(CASE WHEN LOWER(t.payment_method) = 'qris' THEN t.total ELSE 0 END), 0) AS total_qris
     FROM transactions t
-    WHERE t.status = 'SUCCESS'
-      AND t.payment_method <> 'cancelled'
+    WHERE COALESCE(t.status, 'SUCCESS') = 'SUCCESS'
+      AND LOWER(t.payment_method) <> 'cancelled'
       AND t.date >= ?
       AND t.date < ?
     GROUP BY DATE_FORMAT(t.date, '%Y-%m-%d')

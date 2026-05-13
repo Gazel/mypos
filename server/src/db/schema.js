@@ -121,6 +121,60 @@ export async function initDatabase() {
   );
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS ingredients (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      base_unit ENUM('gram','ml','pcs') NOT NULL,
+      display_unit VARCHAR(20) NOT NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ingredient_prices (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ingredient_id INT NOT NULL,
+      effective_date DATE NOT NULL,
+      price_per_display_unit DECIMAL(14,2) NOT NULL,
+      display_unit VARCHAR(20) NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_ingredient_prices_effective_date (ingredient_id, effective_date),
+      FOREIGN KEY (ingredient_id)
+        REFERENCES ingredients(id)
+        ON DELETE CASCADE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS product_recipes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      product_id INT NOT NULL,
+      ingredient_id INT NOT NULL,
+      quantity_per_product DECIMAL(14,4) NOT NULL,
+      unit ENUM('gram','ml','pcs') NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_product_recipe_ingredient (product_id, ingredient_id),
+      FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE,
+      FOREIGN KEY (ingredient_id)
+        REFERENCES ingredients(id)
+        ON DELETE RESTRICT
+    );
+  `);
+
+  await ensureIndex("ingredient_prices", "idx_ingredient_prices_date", "effective_date");
+  await ensureIndex("product_recipes", "idx_product_recipes_product_id", "product_id");
+  await ensureIndex(
+    "product_recipes",
+    "idx_product_recipes_ingredient_id",
+    "ingredient_id"
+  );
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       username VARCHAR(50) NOT NULL UNIQUE,

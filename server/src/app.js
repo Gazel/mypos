@@ -8,6 +8,9 @@ import { authRoutes } from "./routes/authRoutes.js";
 import { userRoutes } from "./routes/userRoutes.js";
 import { productRoutes } from "./routes/productRoutes.js";
 import { categoryRoutes } from "./routes/categoryRoutes.js";
+import { ingredientRoutes } from "./routes/ingredientRoutes.js";
+import { ingredientPriceRoutes } from "./routes/ingredientPriceRoutes.js";
+import { reportRoutes } from "./routes/reportRoutes.js";
 import { transactionRoutes } from "./routes/transactionRoutes.js";
 
 export const app = express();
@@ -20,7 +23,10 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/ingredients", ingredientRoutes);
+app.use("/api/ingredient-prices", ingredientPriceRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

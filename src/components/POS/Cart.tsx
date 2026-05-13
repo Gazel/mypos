@@ -50,8 +50,7 @@ const Cart: React.FC<{
   // Force discount selalu 0 di POS
   useEffect(() => {
     if (discount !== 0) setDiscount(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [discount, setDiscount]);
 
   const handleQuantityChange = (productId: string, quantity: number) => {
     if (quantity >= 1) updateQuantity(productId, quantity);

@@ -79,6 +79,12 @@ web_modules/
 .env.production.local
 .env.local
 
+# Local database dumps / migration scratch files
+*.sql
+backup_*.sql
+old_db*.sql
+safe_legacy_migrate.sh
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

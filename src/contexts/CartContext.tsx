@@ -106,13 +106,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    if (location.pathname === "/") {
-      reloadTransactions();
-    } else if (location.pathname !== "/history") {
+    if (location.pathname !== "/history") {
       setTransactions([]);
       setTransactionFilters(undefined);
     }
-  }, [token, location.pathname, reloadTransactions]);
+  }, [token, location.pathname]);
 
   const addToCart = (item: Omit<CartItem, "subtotal">) => {
     const existingItem = cart.find((i) => i.productId === item.productId);

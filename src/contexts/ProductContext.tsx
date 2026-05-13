@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback
 } from "react";
+import { useLocation } from "react-router-dom";
 import type { Product } from "../types";
 import {
   fetchProductsOnline,
@@ -32,6 +33,7 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({
   children
 }) => {
   const { token } = useAuth(); // ✅ JWT token
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
 
@@ -58,8 +60,16 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [token]);
 
   useEffect(() => {
-    reloadProducts();
-  }, [reloadProducts]);
+    if (!token) {
+      setProducts([]);
+      setCategories([]);
+      return;
+    }
+
+    if (location.pathname === "/pos" || location.pathname === "/settings") {
+      reloadProducts();
+    }
+  }, [location.pathname, reloadProducts, token]);
 
   const addProduct = async (product: Omit<Product, "id">) => {
     if (!token) throw new Error("Missing token");

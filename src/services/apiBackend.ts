@@ -1,5 +1,20 @@
 // src/services/apiBackend.ts
-import type { CartItem, Transaction, Product, UserRow, UserRole } from "../types";
+import type {
+  CartItem,
+  DashboardReport,
+  DashboardSalesTrendMode,
+  DashboardSalesTrendReport,
+  Ingredient,
+  IngredientBaseUnit,
+  IngredientPrice,
+  Product,
+  ProductRecipeItem,
+  RecipeUsageReport,
+  RecipeUsageWarningType,
+  Transaction,
+  UserRole,
+  UserRow,
+} from "../types";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -20,6 +35,23 @@ export interface DailySalesSummaryRow {
   totalSales: number;
   totalCash: number;
   totalQris: number;
+}
+
+export interface FetchRecipeUsageReportOptions {
+  startDate: string;
+  endDate: string;
+}
+
+export interface FetchDashboardReportOptions {
+  startDate: string;
+  endDate: string;
+  previousStartDate?: string;
+  previousEndDate?: string;
+}
+
+export interface FetchDashboardSalesTrendOptions {
+  mode: DashboardSalesTrendMode;
+  endDate: string;
 }
 
 function buildApiUrl(path: string, params?: Record<string, string | undefined>) {
@@ -112,6 +144,237 @@ export async function fetchDailySalesSummaryOnline(
     totalCash: Number(row.totalCash ?? 0),
     totalQris: Number(row.totalQris ?? 0),
   }));
+}
+
+function normalizeDashboardReport(data: ApiRecord): DashboardReport {
+  const filters = (data.filters || {}) as ApiRecord;
+  const summary = (data.summary || {}) as ApiRecord;
+  const comparison = (data.comparison || {}) as ApiRecord;
+  const paymentBreakdown = Array.isArray(data.paymentBreakdown)
+    ? (data.paymentBreakdown as ApiRecord[])
+    : [];
+  const dailyTrend = Array.isArray(data.dailyTrend)
+    ? (data.dailyTrend as ApiRecord[])
+    : [];
+  const topProducts = Array.isArray(data.topProducts)
+    ? (data.topProducts as ApiRecord[])
+    : [];
+  const recentTransactions = Array.isArray(data.recentTransactions)
+    ? (data.recentTransactions as ApiRecord[])
+    : [];
+  const insights = Array.isArray(data.insights)
+    ? (data.insights as ApiRecord[])
+    : [];
+
+  return {
+    filters: {
+      startDate: String(filters.startDate ?? ""),
+      endDate: String(filters.endDate ?? ""),
+      previousStartDate: String(filters.previousStartDate ?? ""),
+      previousEndDate: String(filters.previousEndDate ?? ""),
+    },
+    summary: {
+      transactionCount: Number(summary.transactionCount ?? 0),
+      totalSales: Number(summary.totalSales ?? 0),
+      averageBill: Number(summary.averageBill ?? 0),
+      totalCash: Number(summary.totalCash ?? 0),
+      totalQris: Number(summary.totalQris ?? 0),
+      itemsSold: Number(summary.itemsSold ?? 0),
+    },
+    comparison: {
+      totalSales: Number(comparison.totalSales ?? 0),
+      transactionCount: Number(comparison.transactionCount ?? 0),
+      averageBill: Number(comparison.averageBill ?? 0),
+      salesChangePct: Number(comparison.salesChangePct ?? 0),
+      transactionChangePct: Number(comparison.transactionChangePct ?? 0),
+      averageBillChangePct: Number(comparison.averageBillChangePct ?? 0),
+    },
+    paymentBreakdown: paymentBreakdown.map((row) => ({
+      method: String(row.method ?? ""),
+      transactionCount: Number(row.transactionCount ?? 0),
+      totalSales: Number(row.totalSales ?? 0),
+    })),
+    dailyTrend: dailyTrend.map((row) => ({
+      date: String(row.date ?? ""),
+      transactionCount: Number(row.transactionCount ?? 0),
+      totalSales: Number(row.totalSales ?? 0),
+    })),
+    topProducts: topProducts.map((row) => ({
+      productId: String(row.productId ?? ""),
+      productName: String(row.productName ?? ""),
+      quantitySold: Number(row.quantitySold ?? 0),
+      totalSales: Number(row.totalSales ?? 0),
+    })),
+    recentTransactions: recentTransactions.map((row) => ({
+      id: String(row.id ?? ""),
+      date: String(row.date ?? ""),
+      total: Number(row.total ?? 0),
+      paymentMethod: String(row.paymentMethod ?? ""),
+      itemCount: Number(row.itemCount ?? 0),
+    })),
+    insights: insights.map((row) => ({
+      key: String(row.key ?? ""),
+      label: String(row.label ?? ""),
+      value:
+        typeof row.value === "number"
+          ? row.value
+          : typeof row.value === "string"
+          ? row.value
+          : "",
+      unit: String(row.unit ?? ""),
+      tone:
+        row.tone === "positive" || row.tone === "negative"
+          ? row.tone
+          : "neutral",
+      detail: String(row.detail ?? ""),
+    })),
+  };
+}
+
+export async function fetchDashboardReportOnline(
+  token: string,
+  filters: FetchDashboardReportOptions
+): Promise<DashboardReport> {
+  const res = await fetch(buildApiUrl("/api/reports/dashboard", { ...filters }), {
+    headers: authHeader(token),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed fetching dashboard report")
+    );
+  }
+
+  return normalizeDashboardReport((await res.json()) as ApiRecord);
+}
+
+function normalizeDashboardSalesTrend(data: ApiRecord): DashboardSalesTrendReport {
+  const filters = (data.filters || {}) as ApiRecord;
+  const rows = Array.isArray(data.rows) ? (data.rows as ApiRecord[]) : [];
+
+  return {
+    mode:
+      data.mode === "weekly" || data.mode === "monthly"
+        ? data.mode
+        : "daily",
+    filters: {
+      startDate: String(filters.startDate ?? ""),
+      endDate: String(filters.endDate ?? ""),
+    },
+    rows: rows.map((row) => ({
+      key: String(row.key ?? ""),
+      startDate: String(row.startDate ?? ""),
+      endDate: String(row.endDate ?? ""),
+      transactionCount: Number(row.transactionCount ?? 0),
+      totalSales: Number(row.totalSales ?? 0),
+    })),
+  };
+}
+
+export async function fetchDashboardSalesTrendOnline(
+  token: string,
+  filters: FetchDashboardSalesTrendOptions
+): Promise<DashboardSalesTrendReport> {
+  const res = await fetch(
+    buildApiUrl("/api/reports/dashboard/sales-trend", { ...filters }),
+    {
+      headers: authHeader(token),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed fetching dashboard sales trend")
+    );
+  }
+
+  return normalizeDashboardSalesTrend((await res.json()) as ApiRecord);
+}
+
+function normalizeRecipeUsageIngredient(row: ApiRecord) {
+  return {
+    ingredientId: String(row.ingredientId ?? ""),
+    ingredientName: String(row.ingredientName ?? ""),
+    baseUnit: row.baseUnit as IngredientBaseUnit,
+    displayUnit: String(row.displayUnit ?? ""),
+    usedBaseQty: Number(row.usedBaseQty ?? 0),
+    usedDisplayQty: Number(row.usedDisplayQty ?? 0),
+    pricePerDisplayUnit: Number(row.pricePerDisplayUnit ?? 0),
+    estimatedHpp: Number(row.estimatedHpp ?? 0),
+  };
+}
+
+function normalizeRecipeUsageReport(data: ApiRecord): RecipeUsageReport {
+  const filters = (data.filters || {}) as ApiRecord;
+  const summary = (data.summary || {}) as ApiRecord;
+  const productUsage = Array.isArray(data.productUsage)
+    ? (data.productUsage as ApiRecord[])
+    : [];
+  const ingredientUsage = Array.isArray(data.ingredientUsage)
+    ? (data.ingredientUsage as ApiRecord[])
+    : [];
+  const warnings = Array.isArray(data.warnings)
+    ? (data.warnings as ApiRecord[])
+    : [];
+
+  return {
+    filters: {
+      startDate: String(filters.startDate ?? ""),
+      endDate: String(filters.endDate ?? ""),
+    },
+    summary: {
+      transactionCount: Number(summary.transactionCount ?? 0),
+      totalSales: Number(summary.totalSales ?? 0),
+      estimatedHpp: Number(summary.estimatedHpp ?? 0),
+      estimatedGrossProfit: Number(summary.estimatedGrossProfit ?? 0),
+      estimatedMargin: Number(summary.estimatedMargin ?? 0),
+    },
+    productUsage: productUsage.map((row) => ({
+      productId: String(row.productId ?? ""),
+      productName: String(row.productName ?? ""),
+      soldQty: Number(row.soldQty ?? 0),
+      totalSales: Number(row.totalSales ?? 0),
+      estimatedHppPerProduct: Number(row.estimatedHppPerProduct ?? 0),
+      totalEstimatedHpp: Number(row.totalEstimatedHpp ?? 0),
+      estimatedGrossProfit: Number(row.estimatedGrossProfit ?? 0),
+      estimatedMargin: Number(row.estimatedMargin ?? 0),
+      ingredients: Array.isArray(row.ingredients)
+        ? (row.ingredients as ApiRecord[]).map(normalizeRecipeUsageIngredient)
+        : [],
+    })),
+    ingredientUsage: ingredientUsage.map(normalizeRecipeUsageIngredient),
+    warnings: warnings.map((row) => ({
+      type: row.type as RecipeUsageWarningType,
+      message: String(row.message ?? ""),
+      productId: row.productId ? String(row.productId) : undefined,
+      productName: row.productName ? String(row.productName) : undefined,
+      ingredientId: row.ingredientId ? String(row.ingredientId) : undefined,
+      ingredientName: row.ingredientName
+        ? String(row.ingredientName)
+        : undefined,
+      date: row.date ? String(row.date) : undefined,
+    })),
+  };
+}
+
+export async function fetchRecipeUsageReportOnline(
+  token: string,
+  filters: FetchRecipeUsageReportOptions
+): Promise<RecipeUsageReport> {
+  const res = await fetch(
+    buildApiUrl("/api/reports/recipe-usage", { ...filters }),
+    {
+      headers: authHeader(token),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed fetching recipe usage report")
+    );
+  }
+
+  return normalizeRecipeUsageReport((await res.json()) as ApiRecord);
 }
 
 export async function saveTransactionOnline(
@@ -289,6 +552,253 @@ export async function clearCategoryOnline(
   if (!res.ok) {
     throw new Error("Failed clearing category");
   }
+}
+
+/* ============================
+ * INGREDIENTS / RECIPES
+ * ============================ */
+
+function normalizeIngredient(row: ApiRecord): Ingredient {
+  return {
+    id: String(row.id ?? ""),
+    name: String(row.name ?? ""),
+    baseUnit: row.baseUnit as IngredientBaseUnit,
+    displayUnit: String(row.displayUnit ?? ""),
+    isActive: Boolean(row.isActive),
+    createdAt: row.createdAt ? String(row.createdAt) : undefined,
+    updatedAt: row.updatedAt ? String(row.updatedAt) : undefined,
+  };
+}
+
+function normalizeIngredientPrice(row: ApiRecord): IngredientPrice {
+  return {
+    id: String(row.id ?? ""),
+    ingredientId: String(row.ingredientId ?? ""),
+    ingredientName: String(row.ingredientName ?? ""),
+    effectiveDate: String(row.effectiveDate ?? ""),
+    pricePerDisplayUnit: Number(row.pricePerDisplayUnit ?? 0),
+    displayUnit: String(row.displayUnit ?? ""),
+    createdAt: row.createdAt ? String(row.createdAt) : undefined,
+  };
+}
+
+function normalizeProductRecipeItem(row: ApiRecord): ProductRecipeItem {
+  return {
+    id: row.id ? String(row.id) : undefined,
+    productId: String(row.productId ?? ""),
+    ingredientId: String(row.ingredientId ?? ""),
+    ingredientName: row.ingredientName ? String(row.ingredientName) : undefined,
+    baseUnit: row.baseUnit as IngredientBaseUnit | undefined,
+    displayUnit: row.displayUnit ? String(row.displayUnit) : undefined,
+    isIngredientActive:
+      typeof row.isIngredientActive === "boolean"
+        ? row.isIngredientActive
+        : undefined,
+    quantityPerProduct: Number(row.quantityPerProduct ?? 0),
+    unit: row.unit as IngredientBaseUnit,
+  };
+}
+
+async function readErrorMessage(res: Response, fallback: string) {
+  try {
+    const data = (await res.json()) as { message?: string; error?: string };
+    return data.message || data.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function fetchIngredientsOnline(
+  token: string
+): Promise<Ingredient[]> {
+  const res = await fetch(buildApiUrl("/api/ingredients"), {
+    headers: authHeader(token),
+  });
+
+  if (!res.ok) {
+    console.error("Failed fetching ingredients", res.status);
+    return [];
+  }
+
+  const data = (await res.json()) as ApiRecord[];
+  return data.map(normalizeIngredient);
+}
+
+export async function createIngredientOnline(
+  payload: {
+    name: string;
+    baseUnit: IngredientBaseUnit;
+    displayUnit: string;
+    isActive: boolean;
+  },
+  token: string
+): Promise<Ingredient> {
+  const res = await fetch(buildApiUrl("/api/ingredients"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, "Failed creating ingredient"));
+  }
+
+  return normalizeIngredient((await res.json()) as ApiRecord);
+}
+
+export async function updateIngredientOnline(
+  id: string,
+  payload: {
+    name: string;
+    baseUnit: IngredientBaseUnit;
+    displayUnit: string;
+    isActive: boolean;
+  },
+  token: string
+): Promise<Ingredient> {
+  const res = await fetch(buildApiUrl(`/api/ingredients/${id}`), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, "Failed updating ingredient"));
+  }
+
+  return normalizeIngredient((await res.json()) as ApiRecord);
+}
+
+export async function deleteIngredientOnline(
+  id: string,
+  token: string
+): Promise<void> {
+  const res = await fetch(buildApiUrl(`/api/ingredients/${id}`), {
+    method: "DELETE",
+    headers: authHeader(token),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, "Failed deleting ingredient"));
+  }
+}
+
+export async function fetchIngredientPricesOnline(
+  token: string
+): Promise<IngredientPrice[]> {
+  const res = await fetch(buildApiUrl("/api/ingredient-prices"), {
+    headers: authHeader(token),
+  });
+
+  if (!res.ok) {
+    console.error("Failed fetching ingredient prices", res.status);
+    return [];
+  }
+
+  const data = (await res.json()) as ApiRecord[];
+  return data.map(normalizeIngredientPrice);
+}
+
+export async function createIngredientPriceOnline(
+  payload: {
+    ingredientId: string;
+    effectiveDate: string;
+    pricePerDisplayUnit: number;
+  },
+  token: string
+): Promise<IngredientPrice> {
+  const res = await fetch(buildApiUrl("/api/ingredient-prices"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed creating ingredient price")
+    );
+  }
+
+  return normalizeIngredientPrice((await res.json()) as ApiRecord);
+}
+
+export async function updateIngredientPriceOnline(
+  id: string,
+  payload: {
+    ingredientId: string;
+    effectiveDate: string;
+    pricePerDisplayUnit: number;
+  },
+  token: string
+): Promise<IngredientPrice> {
+  const res = await fetch(buildApiUrl(`/api/ingredient-prices/${id}`), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed updating ingredient price")
+    );
+  }
+
+  return normalizeIngredientPrice((await res.json()) as ApiRecord);
+}
+
+export async function fetchProductRecipeOnline(
+  productId: string,
+  token: string
+): Promise<ProductRecipeItem[]> {
+  const res = await fetch(buildApiUrl(`/api/products/${productId}/recipe`), {
+    headers: authHeader(token),
+  });
+
+  if (!res.ok) {
+    console.error("Failed fetching product recipe", res.status);
+    return [];
+  }
+
+  const data = (await res.json()) as ApiRecord[];
+  return data.map(normalizeProductRecipeItem);
+}
+
+export async function saveProductRecipeOnline(
+  productId: string,
+  recipeItems: Array<{
+    ingredientId: string;
+    quantityPerProduct: number;
+    unit: IngredientBaseUnit;
+  }>,
+  token: string
+): Promise<ProductRecipeItem[]> {
+  const res = await fetch(buildApiUrl(`/api/products/${productId}/recipe`), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+    },
+    body: JSON.stringify({ items: recipeItems }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, "Failed saving recipe"));
+  }
+
+  const data = (await res.json()) as ApiRecord[];
+  return data.map(normalizeProductRecipeItem);
 }
 
 /* ============================

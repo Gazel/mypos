@@ -15,7 +15,7 @@ import Header from "./components/Layout/Header";
 import Footer from "./components/Layout/Footer";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const DailySummaryPage = lazy(() => import("./pages/DailySummaryPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const POSPage = lazy(() => import("./pages/POSPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -96,12 +96,12 @@ function AppRoutes() {
         }
       />
 
-      {/* Daily summary: admin only (+ superadmin via bypass) */}
+      {/* Reports: admin only (+ superadmin via bypass) */}
       <Route
-        path="/daily-summary"
+        path="/reports"
         element={
           <ProtectedRoute roles={["admin"]}>
-            <DailySummaryPage />
+            <ReportsPage />
           </ProtectedRoute>
         }
       />

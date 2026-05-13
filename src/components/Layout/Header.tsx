@@ -178,14 +178,14 @@ const Header: React.FC = () => {
              {hasRole("admin", "superadmin") && (
                 <button
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    location.pathname === "/daily-summary"
+                    location.pathname === "/reports"
                       ? "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
-                  onClick={() => handleNavigate("/daily-summary")}
+                  onClick={() => handleNavigate("/reports")}
                 >
                   <CalendarDays size={16} className="inline mr-1" />
-                  Summary
+                  Reports
                 </button>
               )}
 
@@ -335,14 +335,14 @@ const Header: React.FC = () => {
                {hasRole("admin", "superadmin") && (
                 <button
                   className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    location.pathname === "/daily-summary"
+                    location.pathname === "/reports"
                       ? "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
-                  onClick={() => handleNavigate("/daily-summary")}
+                  onClick={() => handleNavigate("/reports")}
                 >
                   <CalendarDays size={16} className="inline mr-1" />
-                  Summary
+                  Reports
                 </button>
               )}
 

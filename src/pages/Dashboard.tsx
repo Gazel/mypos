@@ -1,439 +1,938 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BarChart,
-  PieChart,
-  ArrowUp,
-  Wallet,
+  Activity,
+  Banknote,
+  BarChart3,
+  CalendarDays,
+  CreditCard,
+  Package,
+  ReceiptText,
+  RefreshCw,
   ShoppingBag,
-  Calendar,
+  TrendingDown,
+  TrendingUp,
+  WalletCards,
+  type LucideIcon,
 } from "lucide-react";
-import { useProducts } from "../contexts/ProductContext";
-import { useCart } from "../contexts/CartContext";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  fetchDashboardReportOnline,
+  fetchDashboardSalesTrendOnline,
+  subscribeTransactionsOnline,
+} from "../services/apiBackend";
+import type {
+  DashboardInsight,
+  DashboardReport,
+  DashboardSalesTrendMode,
+  DashboardSalesTrendReport,
+  Transaction,
+} from "../types";
 import { formatCurrency } from "../utils/formatter";
-import type { CartItem, Transaction } from "../types";
 
-// ---------- helpers ----------
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
+type RangeMode =
+  | "today"
+  | "yesterday"
+  | "thisWeek"
+  | "thisMonth"
+  | "lastMonth"
+  | "custom";
+
+interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+interface RangeOption {
+  value: RangeMode;
+  label: string;
+}
+
+const rangeOptions: RangeOption[] = [
+  { value: "today", label: "Hari Ini" },
+  { value: "yesterday", label: "Kemarin" },
+  { value: "thisWeek", label: "Minggu Ini" },
+  { value: "thisMonth", label: "Bulan Ini" },
+  { value: "lastMonth", label: "Bulan Kemarin" },
+  { value: "custom", label: "Custom Date" },
+];
+
+const trendModeOptions: Array<{
+  value: DashboardSalesTrendMode;
+  label: string;
+}> = [
+  { value: "daily", label: "31 Hari" },
+  { value: "weekly", label: "12 Minggu" },
+  { value: "monthly", label: "6 Bulan" },
+];
+
+function toInputDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
   return d;
 }
 
-function startOfYesterday() {
-  const d = startOfToday();
-  d.setDate(d.getDate() - 1);
+function startOfWeek(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + mondayOffset);
   return d;
 }
 
-function endOfYesterday() {
-  const d = startOfToday();
-  d.setMilliseconds(-1); // 1ms before today starts
-  return d;
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function startOfWeek() {
-  const now = new Date();
-  const d = new Date(now);
-  const day = d.getDay(); // 0 Sun .. 6 Sat
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
-function startOfMonth() {
-  const d = new Date();
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function startOfPreviousMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() - 1, 1);
 }
 
-type RangeKey = "all" | "today" | "yesterday" | "week" | "month" | "custom";
+function daysInMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
 
-function filterTransactions(
-  transactions: Transaction[],
-  range: RangeKey,
-  customStart?: string,
-  customEnd?: string
-) {
-  if (range === "all") return transactions;
+function getPresetRange(mode: Exclude<RangeMode, "custom">): DateRange {
+  const today = new Date();
 
-  let start: Date | null = null;
-  let end: Date | null = null;
-
-  if (range === "today") {
-    start = startOfToday();
-  } else if (range === "yesterday") {
-    start = startOfYesterday();
-    end = endOfYesterday();
-  } else if (range === "week") {
-    start = startOfWeek();
-  } else if (range === "month") {
-    start = startOfMonth();
-  } else if (range === "custom") {
-    if (customStart) {
-      start = new Date(customStart);
-      start.setHours(0, 0, 0, 0);
-    }
-    if (customEnd) {
-      end = new Date(customEnd);
-      end.setHours(23, 59, 59, 999);
-    }
+  if (mode === "today") {
+    return { startDate: toInputDate(today), endDate: toInputDate(today) };
   }
 
-  return transactions.filter((t) => {
-    const txDate = new Date(t.date);
-    if (start && txDate < start) return false;
-    if (end && txDate > end) return false;
-    return true;
-  });
+  if (mode === "yesterday") {
+    const yesterday = addDays(today, -1);
+    return {
+      startDate: toInputDate(yesterday),
+      endDate: toInputDate(yesterday),
+    };
+  }
+
+  if (mode === "thisWeek") {
+    return {
+      startDate: toInputDate(startOfWeek(today)),
+      endDate: toInputDate(today),
+    };
+  }
+
+  if (mode === "thisMonth") {
+    return {
+      startDate: toInputDate(startOfMonth(today)),
+      endDate: toInputDate(today),
+    };
+  }
+
+  const previousMonth = startOfPreviousMonth(today);
+
+  return {
+    startDate: toInputDate(previousMonth),
+    endDate: toInputDate(endOfMonth(previousMonth)),
+  };
 }
 
-// ---------- component ----------
-const Dashboard: React.FC = () => {
-  const { products } = useProducts();
-  const { transactions } = useCart();
+function getPreviousComparisonRange(
+  mode: RangeMode,
+  currentRange: DateRange
+): DateRange {
+  const currentStart = dateKeyToDate(currentRange.startDate);
+  const currentEnd = dateKeyToDate(currentRange.endDate);
 
-  // Range state
-  const [range, setRange] = useState<RangeKey>("all");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  if (mode === "today" || mode === "yesterday") {
+    const previous = addDays(currentStart, -1);
+    return {
+      startDate: toInputDate(previous),
+      endDate: toInputDate(previous),
+    };
+  }
 
-  // Stats
-  const [totalSales, setTotalSales] = useState(0);
-  const [todaySales, setTodaySales] = useState(0);
-  const [totalTransactions, setTotalTransactions] = useState(0);
-  const [todayTransactions, setTodayTransactions] = useState(0);
+  if (mode === "thisWeek") {
+    return {
+      startDate: toInputDate(addDays(currentStart, -7)),
+      endDate: toInputDate(addDays(currentEnd, -7)),
+    };
+  }
 
-  // Charts + recent
-  const [salesByProductAmount, setSalesByProductAmount] = useState<{
-    [key: string]: number;
-  }>({});
-  const [salesByProductQty, setSalesByProductQty] = useState<{
-    [key: string]: number;
-  }>({});
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
-    []
+  if (mode === "thisMonth") {
+    const previousMonthStart = startOfPreviousMonth(currentEnd);
+    const previousMonthDay = Math.min(
+      currentEnd.getDate(),
+      daysInMonth(previousMonthStart.getFullYear(), previousMonthStart.getMonth())
+    );
+
+    return {
+      startDate: toInputDate(previousMonthStart),
+      endDate: toInputDate(
+        new Date(
+          previousMonthStart.getFullYear(),
+          previousMonthStart.getMonth(),
+          previousMonthDay
+        )
+      ),
+    };
+  }
+
+  if (mode === "lastMonth") {
+    const twoMonthsAgo = new Date(
+      currentStart.getFullYear(),
+      currentStart.getMonth() - 1,
+      1
+    );
+
+    return {
+      startDate: toInputDate(twoMonthsAgo),
+      endDate: toInputDate(endOfMonth(twoMonthsAgo)),
+    };
+  }
+
+  const spanDays =
+    Math.floor(
+      (currentEnd.getTime() - currentStart.getTime()) / (24 * 60 * 60 * 1000)
+    ) + 1;
+  const previousEnd = addDays(currentStart, -1);
+
+  return {
+    startDate: toInputDate(addDays(currentStart, -spanDays)),
+    endDate: toInputDate(previousEnd),
+  };
+}
+
+function getComparisonLabel(mode: RangeMode) {
+  if (mode === "thisWeek") return "vs minggu lalu";
+  if (mode === "thisMonth") return "vs bulan lalu sampai tanggal yang sama";
+  if (mode === "lastMonth") return "vs bulan sebelumnya";
+  if (mode === "custom") return "vs periode sebelumnya";
+  return "vs hari sebelumnya";
+}
+
+function dateKeyToDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKeyFromValue(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return toInputDate(d);
+}
+
+function formatShortDate(dateKey: string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+  }).format(dateKeyToDate(dateKey));
+}
+
+function formatMonthLabel(dateKey: string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "short",
+    year: "2-digit",
+  }).format(dateKeyToDate(dateKey));
+}
+
+function formatTrendLabel(
+  mode: DashboardSalesTrendMode,
+  startDate: string,
+  endDate: string
+) {
+  if (mode === "monthly") return formatMonthLabel(startDate);
+  if (mode === "weekly") {
+    return `${formatShortDate(startDate)}-${formatShortDate(endDate)}`;
+  }
+
+  return formatShortDate(startDate);
+}
+
+function formatNumber(value: number, maximumFractionDigits = 0) {
+  return new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits,
+  }).format(value);
+}
+
+function formatSignedPercent(value: number) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${formatNumber(value, 1)}%`;
+}
+
+function getRangeLabel(range: DateRange) {
+  if (range.startDate === range.endDate) {
+    return new Intl.DateTimeFormat("id-ID", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(dateKeyToDate(range.startDate));
+  }
+
+  return `${range.startDate} sampai ${range.endDate}`;
+}
+
+function isSuccessTransaction(transaction: Transaction) {
+  return (
+    (transaction.status || "SUCCESS") === "SUCCESS" &&
+    transaction.paymentMethod !== "cancelled"
   );
+}
 
-  useEffect(() => {
-    // ✅ only SUCCESS should affect dashboard
-    const successTxAll = (transactions || []).filter(
-      (t) => (t.status || "SUCCESS") === "SUCCESS"
-    );
+function isTransactionInRange(transaction: Transaction, range: DateRange) {
+  const dateKey = dateKeyFromValue(transaction.date);
+  return Boolean(
+    dateKey && dateKey >= range.startDate && dateKey <= range.endDate
+  );
+}
 
-    // ----- filtered by range (SUCCESS only) -----
-    const filteredTx = filterTransactions(
-      successTxAll,
-      range,
-      customStart,
-      customEnd
-    );
+function paymentLabel(method: string) {
+  return method.toLowerCase() === "qris" ? "QRIS" : "Cash";
+}
 
-    // Totals (range-based, SUCCESS only)
-    const total = filteredTx.reduce((acc, t) => acc + (t.total || 0), 0);
-    setTotalSales(total);
-    setTotalTransactions(filteredTx.length);
+function changeToneClass(value: number) {
+  if (value > 0) {
+    return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+  }
 
-    // Today stats (SUCCESS only, not range-based)
-    const todayStart = startOfToday();
-    const todayTx = successTxAll.filter((t) => new Date(t.date) >= todayStart);
-    const todayTotal = todayTx.reduce((acc, t) => acc + (t.total || 0), 0);
-    setTodaySales(todayTotal);
-    setTodayTransactions(todayTx.length);
+  if (value < 0) {
+    return "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
+  }
 
-    // Sales by product (Amount + Quantity) - range-based, SUCCESS only
-    const amountMap: { [key: string]: number } = {};
-    const qtyMap: { [key: string]: number } = {};
+  return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+}
 
-    filteredTx.forEach((tx) => {
-      (tx.items || []).forEach((item: CartItem) => {
-        const name = item.name;
-        const qty = item.quantity || 0;
-        const amount = item.subtotal || item.price * qty || 0;
-
-        if (!amountMap[name]) amountMap[name] = 0;
-        if (!qtyMap[name]) qtyMap[name] = 0;
-
-        amountMap[name] += amount;
-        qtyMap[name] += qty;
-      });
-    });
-
-    setSalesByProductAmount(amountMap);
-    setSalesByProductQty(qtyMap);
-
-    // Recent transactions (range-based, SUCCESS only)
-    const recent = [...filteredTx]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-    setRecentTransactions(recent);
-  }, [products, transactions, range, customStart, customEnd]);
+const ChangePill: React.FC<{ value: number }> = ({ value }) => {
+  const Icon = value < 0 ? TrendingDown : TrendingUp;
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      {/* Header + Range Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${changeToneClass(
+        value
+      )}`}
+    >
+      <Icon size={13} />
+      {formatSignedPercent(value)}
+    </span>
+  );
+};
 
-        <div className="flex items-center gap-2">
-          <Calendar size={16} className="text-gray-500" />
-          <select
-            className="
-              px-3 py-2 rounded-md border border-gray-300 
-              dark:border-gray-700 bg-white dark:bg-gray-800 text-sm
-            "
-            value={range}
-            onChange={(e) => setRange(e.target.value as RangeKey)}
-          >
-            <option value="all">Total (All Time)</option>
-            <option value="today">Hari Ini</option>
-            <option value="yesterday">Kemarin</option>
-            <option value="week">Minggu Ini</option>
-            <option value="month">Bulan Ini</option>
-            <option value="custom">Custom Date</option>
-          </select>
+const MetricCard: React.FC<{
+  title: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  iconClassName: string;
+  changePct?: number;
+}> = ({ title, value, detail, icon: Icon, iconClassName, changePct }) => (
+  <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {title}
+        </p>
+        <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+          {value}
+        </p>
+      </div>
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${iconClassName}`}
+      >
+        <Icon size={22} />
+      </div>
+    </div>
+    <div className="mt-4 flex min-h-7 items-center justify-between gap-2">
+      <p className="text-xs text-gray-500 dark:text-gray-400">{detail}</p>
+      {typeof changePct === "number" && <ChangePill value={changePct} />}
+    </div>
+  </div>
+);
+
+function insightValue(insight: DashboardInsight) {
+  if (typeof insight.value === "number" && insight.unit === "%") {
+    return formatSignedPercent(insight.value);
+  }
+
+  return `${insight.value}${insight.unit ? ` ${insight.unit}` : ""}`;
+}
+
+function insightToneClass(tone: DashboardInsight["tone"]) {
+  if (tone === "positive") {
+    return "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200";
+  }
+
+  if (tone === "negative") {
+    return "border-rose-200 bg-rose-50/80 text-rose-900 dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-200";
+  }
+
+  return "border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+}
+
+const InsightCard: React.FC<{ insight: DashboardInsight }> = ({ insight }) => (
+  <div className={`rounded-lg border p-4 shadow-sm ${insightToneClass(insight.tone)}`}>
+    <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
+      {insight.label}
+    </p>
+    <p className="mt-2 truncate text-xl font-bold">{insightValue(insight)}</p>
+    <p className="mt-2 text-sm opacity-75">{insight.detail}</p>
+  </div>
+);
+
+const EmptyPanel: React.FC<{ message: string }> = ({ message }) => (
+  <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+    {message}
+  </div>
+);
+
+function buildLinePath(values: number[], maxValue: number) {
+  const width = 640;
+  const height = 220;
+  const topPadding = 18;
+  const bottomPadding = 34;
+  const usableHeight = height - topPadding - bottomPadding;
+  const step = values.length > 1 ? width / (values.length - 1) : width;
+
+  return values
+    .map((value, index) => {
+      const x = values.length > 1 ? index * step : width / 2;
+      const y =
+        topPadding +
+        usableHeight -
+        (maxValue > 0 ? (value / maxValue) * usableHeight : 0);
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+const SalesTrendChart: React.FC<{
+  report: DashboardSalesTrendReport | null;
+  mode: DashboardSalesTrendMode;
+  isLoading: boolean;
+  errorMessage: string;
+  onModeChange: (mode: DashboardSalesTrendMode) => void;
+}> = ({ report, mode, isLoading, errorMessage, onModeChange }) => {
+  const rows = report?.rows || [];
+  const maxSales = Math.max(...rows.map((row) => row.totalSales), 1);
+  const maxTransactions = Math.max(
+    ...rows.map((row) => row.transactionCount),
+    1
+  );
+  const salesPath = buildLinePath(
+    rows.map((row) => row.totalSales),
+    maxSales
+  );
+  const transactionPath = buildLinePath(
+    rows.map((row) => row.transactionCount),
+    maxTransactions
+  );
+  const totalSales = rows.reduce((sum, row) => sum + row.totalSales, 0);
+  const totalTransactions = rows.reduce(
+    (sum, row) => sum + row.transactionCount,
+    0
+  );
+
+  return (
+    <section className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Trend Penjualan
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Total penjualan dan total transaksi dalam rentang operasional
+          </p>
+        </div>
+
+        <div className="inline-grid grid-cols-3 rounded-md border border-gray-300 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
+          {trendModeOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onModeChange(option.value)}
+              className={`h-8 rounded px-3 text-sm font-medium ${
+                mode === option.value
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Custom range inputs */}
-      {range === "custom" && (
-        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-md bg-blue-50 px-3 py-2 dark:bg-blue-950/30">
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            Total Penjualan
+          </p>
+          <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
+            {formatCurrency(totalSales)}
+          </p>
+        </div>
+        <div className="rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            Total Transaksi
+          </p>
+          <p className="text-lg font-bold text-amber-900 dark:text-amber-100">
+            {formatNumber(totalTransactions)}
+          </p>
+        </div>
+      </div>
+
+      {errorMessage ? (
+        <EmptyPanel message={errorMessage} />
+      ) : rows.length === 0 || isLoading ? (
+        <div className="h-72 animate-pulse rounded-md bg-gray-100 dark:bg-gray-700" />
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-[640px]">
+            <svg
+              viewBox="0 0 640 220"
+              role="img"
+              aria-label="Trend penjualan dan transaksi"
+              className="h-72 w-full"
+              preserveAspectRatio="none"
+            >
+              {[18, 60, 102, 144, 186].map((y) => (
+                <line
+                  key={y}
+                  x1="0"
+                  x2="640"
+                  y1={y}
+                  y2={y}
+                  stroke="currentColor"
+                  className="text-gray-200 dark:text-gray-700"
+                  strokeWidth="1"
+                />
+              ))}
+              <path
+                d={salesPath}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
+              <path
+                d={transactionPath}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
+            </svg>
+            <div className="grid grid-cols-6 gap-2 text-xs text-gray-500 dark:text-gray-400 sm:grid-cols-8 lg:grid-cols-12">
+              {rows
+                .filter((_, index) => {
+                  if (mode === "monthly") return true;
+                  if (mode === "weekly") return index % 2 === 0;
+                  return index % 5 === 0 || index === rows.length - 1;
+                })
+                .map((row) => (
+                  <span key={row.key} className="truncate">
+                    {formatTrendLabel(mode, row.startDate, row.endDate)}
+                  </span>
+                ))}
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Kosongkan start/end untuk “open range”.
-          </p>
         </div>
       )}
 
-      {/* Stats Cards (NEW ORDER) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-5 rounded-full bg-blue-600" />
+          Total Penjualan
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-5 rounded-full bg-amber-500" />
+          Total Transaksi
+        </span>
+      </div>
+    </section>
+  );
+};
 
-                {/* 1. Penjualan Hari Ini (SUCCESS only) */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Penjualan Hari Ini
-              </p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(todaySales)}
-              </p>
-              {todaySales > 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
-                  <ArrowUp size={12} className="mr-1" />
-                  {((todaySales / (totalSales || 1)) * 100).toFixed(1)}% dari total
-                </p>
-              )}
-            </div>
-            <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center text-green-600 dark:text-green-300">
-              <Wallet size={24} />
-            </div>
+const Dashboard: React.FC = () => {
+  const { token } = useAuth();
+  const defaultRange = useMemo(() => getPresetRange("today"), []);
+  const [rangeMode, setRangeMode] = useState<RangeMode>("today");
+  const [customStart, setCustomStart] = useState(defaultRange.startDate);
+  const [customEnd, setCustomEnd] = useState(defaultRange.endDate);
+  const [report, setReport] = useState<DashboardReport | null>(null);
+  const [salesTrendMode, setSalesTrendMode] =
+    useState<DashboardSalesTrendMode>("daily");
+  const [salesTrendReport, setSalesTrendReport] =
+    useState<DashboardSalesTrendReport | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTrendLoading, setIsTrendLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [trendErrorMessage, setTrendErrorMessage] = useState("");
+
+  const selectedRange = useMemo<DateRange>(() => {
+    if (rangeMode === "custom") {
+      return {
+        startDate: customStart,
+        endDate: customEnd,
+      };
+    }
+
+    return getPresetRange(rangeMode);
+  }, [customEnd, customStart, rangeMode]);
+
+  const comparisonRange = useMemo(
+    () => getPreviousComparisonRange(rangeMode, selectedRange),
+    [rangeMode, selectedRange]
+  );
+
+  const isInvalidRange = selectedRange.startDate > selectedRange.endDate;
+
+  const loadDashboard = useCallback(async () => {
+    if (!token) return;
+
+    if (isInvalidRange) {
+      setErrorMessage("Start date tidak boleh lebih besar dari end date.");
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      const data = await fetchDashboardReportOnline(token, {
+        ...selectedRange,
+        previousStartDate: comparisonRange.startDate,
+        previousEndDate: comparisonRange.endDate,
+      });
+      setReport(data);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Gagal memuat dashboard."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [comparisonRange, isInvalidRange, selectedRange, token]);
+
+  const loadSalesTrend = useCallback(async () => {
+    if (!token) return;
+
+    setIsTrendLoading(true);
+    setTrendErrorMessage("");
+
+    try {
+      const data = await fetchDashboardSalesTrendOnline(token, {
+        mode: salesTrendMode,
+        endDate: toInputDate(),
+      });
+      setSalesTrendReport(data);
+    } catch (error) {
+      setTrendErrorMessage(
+        error instanceof Error ? error.message : "Gagal memuat trend penjualan."
+      );
+    } finally {
+      setIsTrendLoading(false);
+    }
+  }, [salesTrendMode, token]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    void loadSalesTrend();
+  }, [loadSalesTrend]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const source = subscribeTransactionsOnline(
+      token,
+      (transaction) => {
+        if (
+          isSuccessTransaction(transaction) &&
+          isTransactionInRange(transaction, selectedRange)
+        ) {
+          void loadDashboard();
+        }
+
+        if (isSuccessTransaction(transaction)) {
+          void loadSalesTrend();
+        }
+      },
+      () => undefined
+    );
+
+    return () => source.close();
+  }, [loadDashboard, loadSalesTrend, selectedRange, token]);
+
+  const summary = report?.summary;
+  const comparison = report?.comparison;
+  const totalPaymentSales = summary?.totalSales || 0;
+  const comparisonLabel = getComparisonLabel(rangeMode);
+
+  return (
+    <div className="container mx-auto px-4 py-6">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+            <Activity size={16} />
+            Operational Overview
           </div>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {getRangeLabel(selectedRange)}
+          </p>
         </div>
 
-        {/* 2. Transaksi Hari Ini (SUCCESS only) */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Transaksi Hari Ini
-              </p>
-              <p className="text-2xl font-bold">{todayTransactions}</p>
-              {todayTransactions > 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
-                  <ArrowUp size={12} className="mr-1" />
-                  {((todayTransactions / (totalTransactions || 1)) * 100).toFixed(1)}% dari total
-                </p>
-              )}
-            </div>
-            <div className="h-12 w-12 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center text-orange-600 dark:text-orange-300">
-              <PieChart size={24} />
-            </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative block w-full sm:w-56">
+            <span className="sr-only">Periode Dashboard</span>
+            <CalendarDays
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <select
+              value={rangeMode}
+              onChange={(event) => setRangeMode(event.target.value as RangeMode)}
+              className="h-10 w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            >
+              {rangeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={() => void loadDashboard()}
+            disabled={isLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {rangeMode === "custom" && (
+        <div className="mb-5 grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:grid-cols-2">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Start Date
+            <input
+              type="date"
+              value={customStart}
+              onChange={(event) => setCustomStart(event.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            />
+          </label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            End Date
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(event) => setCustomEnd(event.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            />
+          </label>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mb-5 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
+          {errorMessage}
+        </div>
+      )}
+
+      {!report && isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-36 animate-pulse rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+            />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              title="Total Penjualan"
+              value={formatCurrency(summary?.totalSales || 0)}
+              detail={`${formatCurrency(summary?.totalCash || 0)} cash, ${formatCurrency(
+                summary?.totalQris || 0
+              )} QRIS`}
+              icon={WalletCards}
+              iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+              changePct={comparison?.salesChangePct}
+            />
+            <MetricCard
+              title="Total Transaksi"
+              value={formatNumber(summary?.transactionCount || 0)}
+              detail={`Jumlah transaksi sukses, ${comparisonLabel}`}
+              icon={ReceiptText}
+              iconClassName="bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+              changePct={comparison?.transactionChangePct}
+            />
+            <MetricCard
+              title="Total Bill"
+              value={formatCurrency(summary?.averageBill || 0)}
+              detail={`Rata-rata nilai per transaksi, ${comparisonLabel}`}
+              icon={BarChart3}
+              iconClassName="bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+              changePct={comparison?.averageBillChangePct}
+            />
+            <MetricCard
+              title="Item Terjual"
+              value={formatNumber(summary?.itemsSold || 0, 2)}
+              detail="Jumlah item dari transaksi sukses"
+              icon={ShoppingBag}
+              iconClassName="bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+            />
           </div>
-        </div>
-      
-        {/* 3. Total Penjualan (range-based) */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Total Penjualan
-              </p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(totalSales)}
-              </p>
-            </div>
-            <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-300">
-              <BarChart size={24} />
-            </div>
+
+          <SalesTrendChart
+            report={salesTrendReport}
+            mode={salesTrendMode}
+            isLoading={isTrendLoading}
+            errorMessage={trendErrorMessage}
+            onModeChange={setSalesTrendMode}
+          />
+
+          <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-4">
+            {(report?.insights || []).map((insight) => (
+              <InsightCard key={insight.key} insight={insight} />
+            ))}
           </div>
-        </div>
 
-        {/* 4. Total Transaksi (range-based) */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Total Transaksi
-              </p>
-              <p className="text-2xl font-bold">{totalTransactions}</p>
-            </div>
-            <div className="h-12 w-12 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-300">
-              <ShoppingBag size={24} />
-            </div>
-          </div>
-        </div>
-        </div>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Payment Mix
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Cash dan QRIS dari total penjualan
+                  </p>
+                </div>
+                <CreditCard
+                  size={20}
+                  className="text-gray-400 dark:text-gray-500"
+                />
+              </div>
 
-
-      {/* Charts + Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart 1: Sales by Product (Amount) */}
-        <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">
-            Penjualan Berdasarkan Produk (Rp)
-          </h2>
-
-          {Object.keys(salesByProductAmount).length > 0 ? (
-            <div className="space-y-2">
-              {Object.entries(salesByProductAmount)
-                .sort((a, b) => b[1] - a[1])
-                .map(([name, amount]) => (
-                  <div key={name} className="flex items-center">
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 mr-2">
-                      <div
-                        className="bg-blue-600 h-4 rounded-full"
-                        style={{
-                          width: `${
-                            totalSales > 0 ? (amount / totalSales) * 100 : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm whitespace-nowrap">
-                      {name} ({formatCurrency(amount)})
-                    </span>
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-center">
-              Tidak ada penjualan di range ini
-            </p>
-          )}
-        </div>
-
-        {/* Chart 2: Sales by Product (Quantity) */}
-        <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">
-            Produk Terjual Berdasarkan Kuantitas
-          </h2>
-
-          {Object.keys(salesByProductQty).length > 0 ? (
-            <div className="space-y-2">
-              {Object.entries(salesByProductQty)
-                .sort((a, b) => b[1] - a[1])
-                .map(([name, qty]) => {
-                  const maxQty =
-                    Math.max(...Object.values(salesByProductQty)) || 1;
+              <div className="space-y-4">
+                {(report?.paymentBreakdown || []).map((row) => {
+                  const share =
+                    totalPaymentSales > 0
+                      ? (row.totalSales / totalPaymentSales) * 100
+                      : 0;
+                  const Icon = row.method === "qris" ? CreditCard : Banknote;
 
                   return (
-                    <div key={name} className="flex items-center">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 mr-2">
+                    <div key={row.method}>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <Icon size={16} />
+                          {paymentLabel(row.method)}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {formatCurrency(row.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {row.transactionCount} bill
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700">
                         <div
-                          className="bg-green-600 h-4 rounded-full"
-                          style={{ width: `${(qty / maxQty) * 100}%` }}
+                          className={`h-2 rounded-full ${
+                            row.method === "qris"
+                              ? "bg-sky-500"
+                              : "bg-emerald-500"
+                          }`}
+                          style={{ width: `${share}%` }}
                         />
                       </div>
-                      <span className="text-sm whitespace-nowrap">
-                        {name} ({qty} pcs)
-                      </span>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {formatNumber(share, 1)}%
+                      </p>
                     </div>
                   );
                 })}
-            </div>
-          ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-center">
-              Tidak ada penjualan di range ini
-            </p>
-          )}
-        </div>
+              </div>
+            </section>
 
-        {/* Recent Transactions (SUCCESS only) */}
-        <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Transaksi Terbaru</h2>
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Produk Teratas
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Diurutkan berdasarkan rupiah terjual
+                  </p>
+                </div>
+                <Package
+                  size={20}
+                  className="text-gray-400 dark:text-gray-500"
+                />
+              </div>
 
-          {recentTransactions.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b dark:border-gray-700">
-                    <th className="py-2 px-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="py-2 px-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Tanggal
-                    </th>
-                    <th className="py-2 px-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Item
-                    </th>
-                    <th className="py-2 px-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentTransactions.map((transaction) => (
-                    <tr
-                      key={transaction.id}
-                      className="border-b dark:border-gray-700"
-                    >
-                      <td className="py-2 px-2 text-sm">{transaction.id}</td>
-                      <td className="py-2 px-2 text-sm">
-                        {new Date(transaction.date).toLocaleDateString("id-ID")}
-                      </td>
-                      <td className="py-2 px-2 text-sm">
-                        {transaction.items.length} item
-                      </td>
-                      <td className="py-2 px-2 text-sm text-right">
-                        {formatCurrency(transaction.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-center">
-              Belum ada transaksi di range ini
-            </p>
-          )}
-        </div>
-      </div>
+              {report?.topProducts.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-left text-xs uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        <th className="py-2 pr-3 font-semibold">Produk</th>
+                        <th className="py-2 px-3 text-right font-semibold">
+                          Qty
+                        </th>
+                        <th className="py-2 pl-3 text-right font-semibold">
+                          Penjualan
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.topProducts.map((row) => (
+                        <tr
+                          key={`${row.productId}-${row.productName}`}
+                          className="border-b border-gray-100 last:border-0 dark:border-gray-700"
+                        >
+                          <td className="py-3 pr-3 font-medium text-gray-900 dark:text-white">
+                            {row.productName}
+                          </td>
+                          <td className="py-3 px-3 text-right text-gray-600 dark:text-gray-300">
+                            {formatNumber(row.quantitySold, 2)}
+                          </td>
+                          <td className="py-3 pl-3 text-right font-semibold text-gray-900 dark:text-white">
+                            {formatCurrency(row.totalSales)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyPanel message="Belum ada produk terjual di periode ini." />
+              )}
+            </section>
+
+          </div>
+        </>
+      )}
     </div>
   );
 };
