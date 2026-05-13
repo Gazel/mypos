@@ -96,11 +96,11 @@ function AppRoutes() {
         }
       />
 
-      {/* Daily summary: admin + cashier (+ superadmin via bypass) */}
+      {/* Daily summary: admin only (+ superadmin via bypass) */}
       <Route
         path="/daily-summary"
         element={
-          <ProtectedRoute roles={["admin", "cashier"]}>
+          <ProtectedRoute roles={["admin"]}>
             <DailySummaryPage />
           </ProtectedRoute>
         }
