@@ -11,8 +11,8 @@ import { requireDbReady } from "../middleware/requireDbReady.js";
 
 export const transactionRoutes = Router();
 
-transactionRoutes.use(authMiddleware, requireRole("admin", "cashier"));
-transactionRoutes.get("/summary", requireDbReady, asyncHandler(listTransactionSummary));
-transactionRoutes.get("/", requireDbReady, asyncHandler(listTransactions));
-transactionRoutes.get("/stream", streamTransactions);
-transactionRoutes.post("/", requireDbReady, asyncHandler(createTransaction));
+transactionRoutes.use(authMiddleware);
+transactionRoutes.get("/summary", requireRole("admin"), requireDbReady, asyncHandler(listTransactionSummary));
+transactionRoutes.get("/", requireRole("admin", "cashier"), requireDbReady, asyncHandler(listTransactions));
+transactionRoutes.get("/stream", requireRole("admin", "cashier"), streamTransactions);
+transactionRoutes.post("/", requireRole("admin", "cashier"), requireDbReady, asyncHandler(createTransaction));
