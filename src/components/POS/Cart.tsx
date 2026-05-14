@@ -1,5 +1,5 @@
 // src/components/POS/Cart.tsx
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "../../contexts/CartContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -10,6 +10,48 @@ import Modal from "../UI/Modal";
 import { useModal } from "../UI/useModal";
 import Receipt from "./Receipt";
 import type { Transaction } from "../../types";
+
+function normalizeCashInput(value: string) {
+  return value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+}
+
+function formatCashInput(value: string) {
+  if (!value) return "";
+  return new Intl.NumberFormat("id-ID").format(Number(value));
+}
+
+function buildCashShortcuts(total: number) {
+  const maxShortcut = total <= 100000
+    ? 100000
+    : Math.ceil(total / 50000) * 50000 + 50000;
+  const candidates = [
+    total,
+    Math.ceil(total / 10000) * 10000,
+    Math.ceil(total / 50000) * 50000,
+    50000,
+    100000,
+    150000,
+    200000,
+    250000,
+    300000,
+  ];
+  const seen = new Set<number>();
+
+  return candidates
+    .filter(
+      (amount) =>
+        Number.isFinite(amount) &&
+        amount >= total &&
+        amount <= maxShortcut &&
+        amount > 0
+    )
+    .filter((amount) => {
+      if (seen.has(amount)) return false;
+      seen.add(amount);
+      return true;
+    })
+    .slice(0, 6);
+}
 
 const Cart: React.FC<{
   embeddedInDrawer?: boolean;
@@ -41,6 +83,8 @@ const Cart: React.FC<{
   const [note, setNote] = useState("");
 
   const { subtotal, total } = calculateTotal();
+  const cashAmount = Number(cashReceived || 0);
+  const cashShortcuts = useMemo(() => buildCashShortcuts(total), [total]);
 
   // 🔒 state untuk lock request
   const [isSaving, setIsSaving] = useState(false); // untuk transaksi SUCCESS
@@ -93,14 +137,13 @@ const Cart: React.FC<{
 
     if (
       paymentMethod === "cash" &&
-      (!cashReceived || parseFloat(cashReceived) < total)
+      (!cashReceived || cashAmount < total)
     ) {
       alert("Jumlah uang yang diberikan tidak mencukupi");
       return;
     }
 
-    const cashAmount =
-      paymentMethod === "cash" ? parseFloat(cashReceived) : total;
+    const receivedAmount = paymentMethod === "cash" ? cashAmount : total;
 
     const trxPayload = {
       items: [...cart],
@@ -109,8 +152,8 @@ const Cart: React.FC<{
       total,
       date: new Date().toISOString(),
       paymentMethod,
-      cashReceived: cashAmount,
-      change: paymentMethod === "cash" ? cashAmount - total : 0,
+      cashReceived: receivedAmount,
+      change: paymentMethod === "cash" ? receivedAmount - total : 0,
       customerName,
       note,
       status: "SUCCESS" as const,
@@ -431,21 +474,53 @@ const Cart: React.FC<{
 
           {paymentMethod === "cash" && (
             <div className="mb-4">
-              <Input
+              <label
+                htmlFor="cashReceived"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Jumlah Uang (Rp)
+                <span className="text-red-500 ml-1">*</span>
+              </label>
+              <input
                 id="cashReceived"
                 name="cashReceived"
-                label="Jumlah Uang (Rp)"
-                type="number"
-                value={cashReceived}
-                onChange={(e) => setCashReceived(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                value={formatCashInput(cashReceived)}
+                onChange={(e) =>
+                  setCashReceived(normalizeCashInput(e.target.value))
+                }
+                placeholder="0"
                 required
                 disabled={actionDisabled}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                  actionDisabled ? "bg-gray-100 text-gray-500" : "bg-white"
+                }`}
               />
 
-              {cashReceived && parseFloat(cashReceived) >= total && (
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {cashShortcuts.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setCashReceived(String(amount))}
+                    disabled={actionDisabled}
+                    className={`rounded-md border px-3 py-2 text-sm font-medium active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+                      cashAmount === amount
+                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {amount === total ? "Uang Pas" : formatCurrency(amount)}
+                  </button>
+                ))}
+              </div>
+
+              {cashReceived && cashAmount >= total && (
                 <div className="mt-2 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300 p-2 rounded-md text-sm">
-                  Kembalian:{" "}
-                  {formatCurrency(parseFloat(cashReceived) - total)}
+                  Kembalian: {formatCurrency(cashAmount - total)}
                 </div>
               )}
             </div>

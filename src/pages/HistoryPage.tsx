@@ -282,14 +282,14 @@ const HistoryPage: React.FC = () => {
           </div>
 
           {/* Date */}
-          <div className="relative w-[140px] md:w-auto">
+          <div className="flex h-[42px] w-[150px] items-center gap-2 rounded-md border bg-gray-50 px-3 dark:bg-gray-700 md:w-auto">
             <CalendarIcon
               size={16}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+              className="shrink-0 text-gray-400"
             />
             <input
               type="date"
-              className="w-full pl-8 pr-2 py-2.5 border rounded-md bg-gray-50 dark:bg-gray-700 text-sm"
+              className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />

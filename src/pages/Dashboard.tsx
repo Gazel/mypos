@@ -259,6 +259,24 @@ function formatNumber(value: number, maximumFractionDigits = 0) {
   }).format(value);
 }
 
+function formatCompactCurrency(value: number) {
+  const absValue = Math.abs(value);
+
+  if (absValue >= 1_000_000_000) {
+    return `Rp ${formatNumber(value / 1_000_000_000, 1)} M`;
+  }
+
+  if (absValue >= 1_000_000) {
+    return `Rp ${formatNumber(value / 1_000_000, 1)} jt`;
+  }
+
+  if (absValue >= 1_000) {
+    return `Rp ${formatNumber(value / 1_000, 0)} rb`;
+  }
+
+  return formatCurrency(value);
+}
+
 function formatSignedPercent(value: number) {
   const sign = value > 0 ? "+" : "";
   return `${sign}${formatNumber(value, 1)}%`;
@@ -389,24 +407,61 @@ const EmptyPanel: React.FC<{ message: string }> = ({ message }) => (
   </div>
 );
 
-function buildLinePath(values: number[], maxValue: number) {
-  const width = 640;
-  const height = 220;
-  const topPadding = 18;
-  const bottomPadding = 34;
-  const usableHeight = height - topPadding - bottomPadding;
-  const step = values.length > 1 ? width / (values.length - 1) : width;
+const chartBox = {
+  width: 760,
+  height: 280,
+  left: 86,
+  right: 56,
+  top: 22,
+  bottom: 48,
+};
 
+function getChartPoint(
+  value: number,
+  index: number,
+  length: number,
+  maxValue: number
+) {
+  const plotWidth = chartBox.width - chartBox.left - chartBox.right;
+  const plotHeight = chartBox.height - chartBox.top - chartBox.bottom;
+  const x =
+    length > 1
+      ? chartBox.left + (index * plotWidth) / (length - 1)
+      : chartBox.left + plotWidth / 2;
+  const y =
+    chartBox.top +
+    plotHeight -
+    (maxValue > 0 ? (value / maxValue) * plotHeight : 0);
+
+  return { x, y };
+}
+
+function buildLinePath(values: number[], maxValue: number) {
   return values
     .map((value, index) => {
-      const x = values.length > 1 ? index * step : width / 2;
-      const y =
-        topPadding +
-        usableHeight -
-        (maxValue > 0 ? (value / maxValue) * usableHeight : 0);
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      const point = getChartPoint(value, index, values.length, maxValue);
+      return `${index === 0 ? "M" : "L"} ${point.x.toFixed(
+        2
+      )} ${point.y.toFixed(2)}`;
     })
     .join(" ");
+}
+
+function shouldShowTrendTick(
+  mode: DashboardSalesTrendMode,
+  index: number,
+  length: number
+) {
+  if (index === 0 || index === length - 1) return true;
+  if (mode === "monthly") return true;
+  if (mode === "weekly") return index % 2 === 0;
+  return index % 5 === 0;
+}
+
+function xLabelAnchor(index: number, length: number) {
+  if (index === 0) return "start";
+  if (index === length - 1) return "end";
+  return "middle";
 }
 
 const SalesTrendChart: React.FC<{
@@ -434,6 +489,22 @@ const SalesTrendChart: React.FC<{
   const totalTransactions = rows.reduce(
     (sum, row) => sum + row.transactionCount,
     0
+  );
+  const yTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => {
+    const plotHeight = chartBox.height - chartBox.top - chartBox.bottom;
+
+    return {
+      ratio,
+      y: chartBox.top + (1 - ratio) * plotHeight,
+      sales: maxSales * ratio,
+      transactions: maxTransactions * ratio,
+    };
+  });
+  const salesPoints = rows.map((row, index) =>
+    getChartPoint(row.totalSales, index, rows.length, maxSales)
+  );
+  const transactionPoints = rows.map((row, index) =>
+    getChartPoint(row.transactionCount, index, rows.length, maxTransactions)
   );
 
   return (
@@ -490,27 +561,71 @@ const SalesTrendChart: React.FC<{
       ) : rows.length === 0 || isLoading ? (
         <div className="h-72 animate-pulse rounded-md bg-gray-100 dark:bg-gray-700" />
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-[640px]">
+        <div className="w-full">
+          <div className="w-full">
             <svg
-              viewBox="0 0 640 220"
+              viewBox={`0 0 ${chartBox.width} ${chartBox.height}`}
               role="img"
               aria-label="Trend penjualan dan transaksi"
               className="h-72 w-full"
-              preserveAspectRatio="none"
+              preserveAspectRatio="xMidYMid meet"
             >
-              {[18, 60, 102, 144, 186].map((y) => (
-                <line
-                  key={y}
-                  x1="0"
-                  x2="640"
-                  y1={y}
-                  y2={y}
-                  stroke="currentColor"
-                  className="text-gray-200 dark:text-gray-700"
-                  strokeWidth="1"
-                />
+              <text
+                x={chartBox.left}
+                y="12"
+                className="fill-blue-600 text-[11px] font-semibold"
+              >
+                Penjualan
+              </text>
+              <text
+                x={chartBox.width - chartBox.right}
+                y="12"
+                textAnchor="end"
+                className="fill-amber-600 text-[11px] font-semibold"
+              >
+                Transaksi
+              </text>
+
+              {yTicks.map((tick) => (
+                <g key={tick.ratio}>
+                  <line
+                    x1={chartBox.left}
+                    x2={chartBox.width - chartBox.right}
+                    y1={tick.y}
+                    y2={tick.y}
+                    stroke="currentColor"
+                    className="text-gray-200 dark:text-gray-700"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={chartBox.left - 8}
+                    y={tick.y + 4}
+                    textAnchor="end"
+                    className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                  >
+                    {formatCompactCurrency(tick.sales)}
+                  </text>
+                  <text
+                    x={chartBox.width - chartBox.right + 8}
+                    y={tick.y + 4}
+                    textAnchor="start"
+                    className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                  >
+                    {formatNumber(tick.transactions, 0)}
+                  </text>
+                </g>
               ))}
+
+              <line
+                x1={chartBox.left}
+                x2={chartBox.width - chartBox.right}
+                y1={chartBox.height - chartBox.bottom}
+                y2={chartBox.height - chartBox.bottom}
+                stroke="currentColor"
+                className="text-gray-300 dark:text-gray-600"
+                strokeWidth="1.25"
+              />
+
               <path
                 d={salesPath}
                 fill="none"
@@ -527,20 +642,63 @@ const SalesTrendChart: React.FC<{
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-            </svg>
-            <div className="grid grid-cols-6 gap-2 text-xs text-gray-500 dark:text-gray-400 sm:grid-cols-8 lg:grid-cols-12">
-              {rows
-                .filter((_, index) => {
-                  if (mode === "monthly") return true;
-                  if (mode === "weekly") return index % 2 === 0;
-                  return index % 5 === 0 || index === rows.length - 1;
-                })
-                .map((row) => (
-                  <span key={row.key} className="truncate">
+              {salesPoints.map((point, index) => (
+                <circle
+                  key={`sales-${rows[index].key}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={mode === "daily" ? 2.2 : 3}
+                  fill="#2563eb"
+                  className="stroke-white dark:stroke-gray-800"
+                  strokeWidth="1.5"
+                >
+                  <title>
+                    {`${formatTrendLabel(
+                      mode,
+                      rows[index].startDate,
+                      rows[index].endDate
+                    )}: ${formatCurrency(rows[index].totalSales)}`}
+                  </title>
+                </circle>
+              ))}
+              {transactionPoints.map((point, index) => (
+                <circle
+                  key={`transactions-${rows[index].key}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={mode === "daily" ? 2.2 : 3}
+                  fill="#f59e0b"
+                  className="stroke-white dark:stroke-gray-800"
+                  strokeWidth="1.5"
+                >
+                  <title>
+                    {`${formatTrendLabel(
+                      mode,
+                      rows[index].startDate,
+                      rows[index].endDate
+                    )}: ${formatNumber(rows[index].transactionCount)} transaksi`}
+                  </title>
+                </circle>
+              ))}
+
+              {rows.map((row, index) => {
+                if (!shouldShowTrendTick(mode, index, rows.length)) return null;
+
+                const point = getChartPoint(0, index, rows.length, 1);
+
+                return (
+                  <text
+                    key={`label-${row.key}`}
+                    x={point.x}
+                    y={chartBox.height - 14}
+                    textAnchor={xLabelAnchor(index, rows.length)}
+                    className="fill-gray-500 text-[11px] dark:fill-gray-400"
+                  >
                     {formatTrendLabel(mode, row.startDate, row.endDate)}
-                  </span>
-                ))}
-            </div>
+                  </text>
+                );
+              })}
+            </svg>
           </div>
         </div>
       )}
@@ -694,16 +852,16 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="relative block w-full sm:w-56">
+          <label className="flex h-10 w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:w-56">
             <span className="sr-only">Periode Dashboard</span>
             <CalendarDays
               size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              className="shrink-0 text-gray-400"
             />
             <select
               value={rangeMode}
               onChange={(event) => setRangeMode(event.target.value as RangeMode)}
-              className="h-10 w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-700 outline-none dark:text-gray-100"
             >
               {rangeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -785,7 +943,7 @@ const Dashboard: React.FC = () => {
               changePct={comparison?.transactionChangePct}
             />
             <MetricCard
-              title="Total Bill"
+              title="Average Penjualan"
               value={formatCurrency(summary?.averageBill || 0)}
               detail={`Rata-rata nilai per transaksi, ${comparisonLabel}`}
               icon={BarChart3}

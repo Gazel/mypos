@@ -4,7 +4,9 @@ import { pool } from "../db/pool.js";
 export async function listUsers(req, res) {
   const [rows] = await pool.query(
     `SELECT id, username, full_name, role, is_active, created_at
-       FROM users ORDER BY id DESC`
+       FROM users
+      WHERE is_active = 1
+      ORDER BY id DESC`
   );
   res.json(rows);
 }
@@ -25,7 +27,36 @@ export async function createUser(req, res) {
       .json({ message: "Admin tidak dapat membuat user superadmin." });
   }
 
+  const [[existingUser]] = await pool.query(
+    "SELECT id, is_active FROM users WHERE username=? LIMIT 1",
+    [username]
+  );
+
   const hash = await bcrypt.hash(password, 10);
+
+  if (existingUser) {
+    if (Number(existingUser.is_active) === 1) {
+      return res.status(409).json({ message: "Username already exists." });
+    }
+
+    await pool.query(
+      `UPDATE users
+          SET password_hash = ?,
+              full_name = ?,
+              role = ?,
+              is_active = 1
+        WHERE id = ?`,
+      [hash, full_name || null, role, existingUser.id]
+    );
+
+    const [rows] = await pool.query(
+      `SELECT id, username, full_name, role, is_active, created_at
+         FROM users WHERE id=? LIMIT 1`,
+      [existingUser.id]
+    );
+    return res.json(rows[0]);
+  }
+
   const [result] = await pool.query(
     `INSERT INTO users (username, password_hash, full_name, role)
        VALUES (?, ?, ?, ?)`,
@@ -140,6 +171,6 @@ export async function deleteUser(req, res) {
       .json({ message: "Admin tidak dapat menonaktifkan superadmin." });
   }
 
-  await pool.query("UPDATE users SET is_active=0 WHERE id=?", [id]);
-  res.json({ message: "User disabled" });
+  await pool.query("DELETE FROM users WHERE id=?", [id]);
+  res.json({ message: "User deleted" });
 }
