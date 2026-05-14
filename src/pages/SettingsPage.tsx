@@ -1145,7 +1145,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <div
-          className="inline-flex overflow-hidden rounded-md border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-800"
+          className="grid w-full grid-cols-3 overflow-hidden rounded-md border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-800 md:w-auto"
           role="tablist"
           aria-label="Settings sections"
         >
@@ -1159,7 +1159,7 @@ const SettingsPage: React.FC = () => {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActiveSettingsTab(tab.id)}
-                className={`whitespace-nowrap px-3 py-2 text-sm transition-colors ${
+                className={`flex min-h-10 items-center justify-center px-3 py-2 text-center text-sm font-medium leading-tight transition-colors md:min-w-36 ${
                   index > 0 ? "border-l border-gray-300 dark:border-gray-700" : ""
                 } ${
                   isActive
