@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Banknote,
@@ -407,20 +407,69 @@ const EmptyPanel: React.FC<{ message: string }> = ({ message }) => (
   </div>
 );
 
-const chartBox = {
+type ChartBox = {
+  width: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
+
+const defaultChartBox: ChartBox = {
   width: 760,
-  height: 280,
+  height: 320,
   left: 86,
   right: 56,
   top: 22,
   bottom: 48,
 };
 
+function useElementSize<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      setSize({
+        width: Math.max(1, Math.round(rect.width)),
+        height: Math.max(1, Math.round(rect.height)),
+      });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, size] as const;
+}
+
+function buildChartBox(width: number, height: number): ChartBox {
+  const compact = width < 520;
+
+  return {
+    width,
+    height,
+    left: compact ? 62 : 86,
+    right: compact ? 40 : 56,
+    top: compact ? 24 : 22,
+    bottom: compact ? 44 : 48,
+  };
+}
+
 function getChartPoint(
   value: number,
   index: number,
   length: number,
-  maxValue: number
+  maxValue: number,
+  chartBox: ChartBox
 ) {
   const plotWidth = chartBox.width - chartBox.left - chartBox.right;
   const plotHeight = chartBox.height - chartBox.top - chartBox.bottom;
@@ -436,10 +485,16 @@ function getChartPoint(
   return { x, y };
 }
 
-function buildLinePath(values: number[], maxValue: number) {
+function buildLinePath(values: number[], maxValue: number, chartBox: ChartBox) {
   return values
     .map((value, index) => {
-      const point = getChartPoint(value, index, values.length, maxValue);
+      const point = getChartPoint(
+        value,
+        index,
+        values.length,
+        maxValue,
+        chartBox
+      );
       return `${index === 0 ? "M" : "L"} ${point.x.toFixed(
         2
       )} ${point.y.toFixed(2)}`;
@@ -472,6 +527,15 @@ const SalesTrendChart: React.FC<{
   onModeChange: (mode: DashboardSalesTrendMode) => void;
 }> = ({ report, mode, isLoading, errorMessage, onModeChange }) => {
   const rows = report?.rows || [];
+  const [chartContainerRef, chartSize] = useElementSize<HTMLDivElement>();
+  const chartBox = useMemo(
+    () =>
+      buildChartBox(
+        chartSize.width || defaultChartBox.width,
+        chartSize.height || defaultChartBox.height
+      ),
+    [chartSize.height, chartSize.width]
+  );
   const maxSales = Math.max(...rows.map((row) => row.totalSales), 1);
   const maxTransactions = Math.max(
     ...rows.map((row) => row.transactionCount),
@@ -479,11 +543,13 @@ const SalesTrendChart: React.FC<{
   );
   const salesPath = buildLinePath(
     rows.map((row) => row.totalSales),
-    maxSales
+    maxSales,
+    chartBox
   );
   const transactionPath = buildLinePath(
     rows.map((row) => row.transactionCount),
-    maxTransactions
+    maxTransactions,
+    chartBox
   );
   const totalSales = rows.reduce((sum, row) => sum + row.totalSales, 0);
   const totalTransactions = rows.reduce(
@@ -501,10 +567,16 @@ const SalesTrendChart: React.FC<{
     };
   });
   const salesPoints = rows.map((row, index) =>
-    getChartPoint(row.totalSales, index, rows.length, maxSales)
+    getChartPoint(row.totalSales, index, rows.length, maxSales, chartBox)
   );
   const transactionPoints = rows.map((row, index) =>
-    getChartPoint(row.transactionCount, index, rows.length, maxTransactions)
+    getChartPoint(
+      row.transactionCount,
+      index,
+      rows.length,
+      maxTransactions,
+      chartBox
+    )
   );
 
   return (
@@ -559,16 +631,19 @@ const SalesTrendChart: React.FC<{
       {errorMessage ? (
         <EmptyPanel message={errorMessage} />
       ) : rows.length === 0 || isLoading ? (
-        <div className="h-72 animate-pulse rounded-md bg-gray-100 dark:bg-gray-700" />
+        <div className="h-[320px] animate-pulse rounded-md bg-gray-100 dark:bg-gray-700" />
       ) : (
-        <div className="w-full">
-          <div className="w-full">
+        <div
+          ref={chartContainerRef}
+          className="h-[320px] w-full overflow-hidden"
+        >
+          <div className="h-full w-full">
             <svg
               viewBox={`0 0 ${chartBox.width} ${chartBox.height}`}
               role="img"
               aria-label="Trend penjualan dan transaksi"
-              className="h-72 w-full"
-              preserveAspectRatio="xMidYMid meet"
+              className="block h-full w-full"
+              preserveAspectRatio="none"
             >
               <text
                 x={chartBox.left}
@@ -684,7 +759,7 @@ const SalesTrendChart: React.FC<{
               {rows.map((row, index) => {
                 if (!shouldShowTrendTick(mode, index, rows.length)) return null;
 
-                const point = getChartPoint(0, index, rows.length, 1);
+                const point = getChartPoint(0, index, rows.length, 1, chartBox);
 
                 return (
                   <text
