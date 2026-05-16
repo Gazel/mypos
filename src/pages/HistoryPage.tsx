@@ -5,7 +5,7 @@ import {
   CalendarIcon,
   Eye,
   ArrowDownUp,
-  Download,
+  RefreshCw,
 } from "lucide-react";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -13,11 +13,8 @@ import { formatCurrency, formatDateHistory } from "../utils/formatter";
 import Modal from "../components/UI/Modal";
 import { useModal } from "../components/UI/useModal";
 import Receipt from "../components/POS/Receipt";
-import type { CartItem, Transaction } from "../types";
-import {
-  fetchTransactionsOnline,
-  subscribeTransactionsOnline,
-} from "../services/apiBackend";
+import type { Transaction } from "../types";
+import { subscribeTransactionsOnline } from "../services/apiBackend";
 
 type SortField = "date" | "total" | "items";
 
@@ -101,13 +98,6 @@ const HistoryPage: React.FC = () => {
   };
 
   // ================================
-  // DOWNLOAD RANGE
-  // ================================
-  const [showDownload, setShowDownload] = useState(false);
-  const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
-
-  // ================================
   // FILTERED TRANSACTIONS (auto updates)
   // ================================
   const filteredTransactions = useMemo(() => {
@@ -165,6 +155,17 @@ const HistoryPage: React.FC = () => {
     openModal();
   };
 
+  const refreshTransactions = async () => {
+    if (!token || !dateFilter || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      await reloadTransactions({ date: dateFilter });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderPaymentLabel = (trx: Transaction) => {
     if (trx.status === "CANCELLED" || trx.paymentMethod === "cancelled")
       return "Cancelled";
@@ -192,68 +193,6 @@ const HistoryPage: React.FC = () => {
   };
 
   // ================================
-  // DOWNLOAD CSV
-  // ================================
-  const downloadCsvByRange = async () => {
-    if (!token) return;
-
-    const rows =
-      rangeStart || rangeEnd
-        ? await fetchTransactionsOnline(token, {
-            startDate: rangeStart || undefined,
-            endDate: rangeEnd || undefined,
-          })
-        : filteredTransactions;
-
-    if (rows.length === 0) {
-      alert("No transactions in that range.");
-      return;
-    }
-
-    const header = [
-      "id",
-      "date",
-      "status",
-      "payment_method",
-      "subtotal",
-      "discount",
-      "total",
-      "items_count",
-      "items_detail",
-    ];
-
-    const csvRows = rows.map((trx) => {
-      const items = trx.items
-        .map((i: CartItem) => `${i.name} x${i.quantity} @${i.price}`)
-        .join(" | ")
-        .replace(/"/g, '""');
-
-      return [
-        trx.id,
-        trx.date,
-        trx.status || "SUCCESS",
-        trx.paymentMethod,
-        trx.subtotal,
-        trx.discount,
-        trx.total,
-        trx.items.length,
-        `"${items}"`,
-      ].join(",");
-    });
-
-    const csv = [header.join(","), ...csvRows].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transactions_${rangeStart || "all"}_${rangeEnd || "all"}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ================================
   // RENDER PAGE
   // ================================
   return (
@@ -264,7 +203,7 @@ const HistoryPage: React.FC = () => {
 
       {/* === FILTER PANEL === */}
       <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow-sm mb-4 border dark:border-gray-700">
-        {/* Top Row: Search + Date + Download */}
+        {/* Top Row: Search + Date + Refresh */}
         <div className="flex items-center gap-2 md:gap-3">
           {/* Search */}
           <div className="relative flex-1">
@@ -295,46 +234,16 @@ const HistoryPage: React.FC = () => {
             />
           </div>
 
-          {/* Download Button */}
           <button
-            onClick={() => setShowDownload((x) => !x)}
-            className="h-[42px] w-[42px] flex items-center justify-center rounded-md border bg-gray-50 dark:bg-gray-900"
-            title="Download CSV"
+            onClick={refreshTransactions}
+            disabled={isLoading || !dateFilter}
+            className="h-[42px] w-[42px] flex shrink-0 items-center justify-center rounded-md border bg-gray-50 text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700"
+            title="Refresh transaksi"
+            aria-label="Refresh transaksi"
           >
-            <Download size={18} />
+            <RefreshCw size={17} className={isLoading ? "animate-spin" : ""} />
           </button>
         </div>
-
-        {/* Expandable Download Panel */}
-        {showDownload && (
-          <div className="mt-3 pt-3 border-t dark:border-gray-700 space-y-2">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Download CSV by Range
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 text-sm"
-                value={rangeStart}
-                onChange={(e) => setRangeStart(e.target.value)}
-              />
-              <input
-                type="date"
-                className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-700 text-sm"
-                value={rangeEnd}
-                onChange={(e) => setRangeEnd(e.target.value)}
-              />
-            </div>
-
-            <button
-              onClick={downloadCsvByRange}
-              className="w-full px-4 py-2 rounded-md bg-blue-600 text-white text-sm active:scale-95"
-            >
-              Download CSV
-            </button>
-          </div>
-        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-3 pt-3 mt-3 border-t dark:border-gray-700">
@@ -383,15 +292,15 @@ const HistoryPage: React.FC = () => {
         </div>
       ) : filteredTransactions.length > 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y dark:divide-gray-700">
+          <div className="fit-table-wrap">
+            <table className="fit-table divide-y dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs text-gray-500">
+                  <th className="w-[18%] text-left">
                     ID
                   </th>
                   <th
-                    className="px-3 py-3 text-left text-xs text-gray-500 cursor-pointer"
+                    className="w-[23%] cursor-pointer text-left"
                     onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center">
@@ -399,7 +308,7 @@ const HistoryPage: React.FC = () => {
                     </div>
                   </th>
                   <th
-                    className="px-3 py-3 text-left text-xs text-gray-500 cursor-pointer"
+                    className="w-[10%] cursor-pointer text-left"
                     onClick={() => handleSort("items")}
                   >
                     <div className="flex items-center">
@@ -407,20 +316,20 @@ const HistoryPage: React.FC = () => {
                     </div>
                   </th>
                   <th
-                    className="px-3 py-3 text-left text-xs text-gray-500 cursor-pointer"
+                    className="w-[17%] cursor-pointer text-left"
                     onClick={() => handleSort("total")}
                   >
                     <div className="flex items-center">
                       Total <ArrowDownUp size={14} className="ml-1" />
                     </div>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs text-gray-500">
+                  <th className="w-[11%] text-left">
                     Bayar
                   </th>
-                  <th className="px-3 py-3 text-left text-xs text-gray-500">
+                  <th className="w-[14%] text-left">
                     Status
                   </th>
-                  <th className="px-3 py-3 text-right text-xs text-gray-500">
+                  <th className="w-[7%] text-right">
                     Aksi
                   </th>
                 </tr>
@@ -441,25 +350,25 @@ const HistoryPage: React.FC = () => {
                           : ""
                       }`}
                     >
-                      <td className="px-3 py-3 font-mono text-xs">
+                      <td className="font-mono">
                         {trx.id}
                       </td>
-                      <td className="px-3 py-3 text-xs">
+                      <td>
                         {formatDateHistory(trx.date)}
                       </td>
-                      <td className="px-3 py-3 text-xs">
+                      <td>
                         {trx.items.length}
                       </td>
-                      <td className="px-3 py-3 text-xs">
+                      <td>
                         {formatCurrency(trx.total)}
                       </td>
-                      <td className="px-3 py-3 text-xs">
+                      <td>
                         {renderPaymentLabel(trx)}
                       </td>
-                      <td className="px-3 py-3 text-xs">
+                      <td>
                         {renderStatusBadge(trx.status)}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="fit-table-actions">
                         <button
                           className="text-blue-600 dark:text-blue-400"
                           onClick={() => viewTransaction(trx)}

@@ -926,8 +926,8 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="flex h-10 w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:w-56">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:w-48 sm:flex-none">
             <span className="sr-only">Periode Dashboard</span>
             <CalendarDays
               size={16}
@@ -950,10 +950,11 @@ const Dashboard: React.FC = () => {
             type="button"
             onClick={() => void loadDashboard()}
             disabled={isLoading}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            title="Refresh dashboard"
+            aria-label="Refresh dashboard"
           >
             <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-            Refresh
           </button>
         </div>
       </div>
@@ -1125,15 +1126,15 @@ const Dashboard: React.FC = () => {
               </div>
 
               {report?.topProducts.length ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                <div className="fit-table-wrap">
+                  <table className="fit-table">
                     <thead>
                       <tr className="border-b border-gray-200 text-left text-xs uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                        <th className="py-2 pr-3 font-semibold">Produk</th>
-                        <th className="py-2 px-3 text-right font-semibold">
+                        <th className="w-[48%] text-left font-semibold">Produk</th>
+                        <th className="w-[20%] fit-table-number font-semibold">
                           Qty
                         </th>
-                        <th className="py-2 pl-3 text-right font-semibold">
+                        <th className="w-[32%] fit-table-number font-semibold">
                           Penjualan
                         </th>
                       </tr>
@@ -1144,13 +1145,13 @@ const Dashboard: React.FC = () => {
                           key={`${row.productId}-${row.productName}`}
                           className="border-b border-gray-100 last:border-0 dark:border-gray-700"
                         >
-                          <td className="py-3 pr-3 font-medium text-gray-900 dark:text-white">
+                          <td className="font-medium text-gray-900 dark:text-white">
                             {row.productName}
                           </td>
-                          <td className="py-3 px-3 text-right text-gray-600 dark:text-gray-300">
+                          <td className="fit-table-number text-gray-600 dark:text-gray-300">
                             {formatNumber(row.quantitySold, 2)}
                           </td>
-                          <td className="py-3 pl-3 text-right font-semibold text-gray-900 dark:text-white">
+                          <td className="fit-table-number font-semibold text-gray-900 dark:text-white">
                             {formatCurrency(row.totalSales)}
                           </td>
                         </tr>

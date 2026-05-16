@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .fit-table-wrap {
+    @apply w-full overflow-hidden;
+  }
+
+  .fit-table {
+    @apply w-full table-auto;
+  }
+
+  .fit-table th,
+  .fit-table td {
+    @apply whitespace-normal break-words px-2 py-2 align-middle text-[11px] leading-snug sm:px-3 sm:py-3 sm:text-xs md:text-sm;
+  }
+
+  .fit-table th {
+    @apply whitespace-nowrap text-[10px] font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400 sm:text-xs;
+    width: auto !important;
+  }
+
+  .fit-table .fit-table-actions {
+    @apply whitespace-nowrap text-right;
+  }
+
+  .fit-table .fit-table-number {
+    @apply text-right tabular-nums;
+  }
+}

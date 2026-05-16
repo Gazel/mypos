@@ -11,7 +11,7 @@ import type { RecipeUsageReport, Transaction } from "../types";
 import { formatCurrency } from "../utils/formatter";
 
 type ReportTab = "daily" | "usage";
-type DailyRangeMode = "30" | "60" | "custom";
+type DailyRangeMode = "thisMonth" | "lastMonth" | "custom";
 type UsageRangeMode =
   | "today"
   | "yesterday"
@@ -34,15 +34,6 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function presetDailyRange(days: number) {
-  const end = new Date();
-  const start = addDays(end, -(days - 1));
-  return {
-    startDate: toInputDate(start),
-    endDate: toInputDate(end),
-  };
-}
-
 function startOfWeek(date: Date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -53,6 +44,27 @@ function startOfWeek(date: Date) {
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function getDailyPresetRange(mode: Exclude<DailyRangeMode, "custom">) {
+  const today = new Date();
+
+  if (mode === "lastMonth") {
+    const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    return {
+      startDate: toInputDate(startOfMonth(previousMonth)),
+      endDate: toInputDate(endOfMonth(previousMonth)),
+    };
+  }
+
+  return {
+    startDate: toInputDate(startOfMonth(today)),
+    endDate: toInputDate(today),
+  };
 }
 
 function getUsagePresetRange(mode: Exclude<UsageRangeMode, "custom">) {
@@ -159,7 +171,10 @@ const emptySummary = (date: string): DailySalesSummaryRow => ({
 
 const ReportsPage: React.FC = () => {
   const { token } = useAuth();
-  const defaultDailyRange = useMemo(() => presetDailyRange(30), []);
+  const defaultDailyRange = useMemo(
+    () => getDailyPresetRange("thisMonth"),
+    []
+  );
   const defaultUsageRange = useMemo(() => getUsagePresetRange("today"), []);
 
   const [activeTab, setActiveTab] = useState<ReportTab>(() => {
@@ -167,7 +182,7 @@ const ReportsPage: React.FC = () => {
     return savedTab === "usage" ? "usage" : "daily";
   });
   const [dailyRangeMode, setDailyRangeMode] =
-    useState<DailyRangeMode>("30");
+    useState<DailyRangeMode>("thisMonth");
   const [dailyCustomStart, setDailyCustomStart] = useState(
     defaultDailyRange.startDate
   );
@@ -191,7 +206,6 @@ const ReportsPage: React.FC = () => {
   const [usageErrorMessage, setUsageErrorMessage] = useState("");
 
   const dailyRange = useMemo(() => {
-    if (dailyRangeMode === "60") return presetDailyRange(60);
     if (dailyRangeMode === "custom") {
       return {
         startDate: dailyCustomStart,
@@ -199,7 +213,7 @@ const ReportsPage: React.FC = () => {
       };
     }
 
-    return presetDailyRange(30);
+    return getDailyPresetRange(dailyRangeMode);
   }, [dailyCustomEnd, dailyCustomStart, dailyRangeMode]);
 
   const usageRange = useMemo(() => {
@@ -335,6 +349,23 @@ const ReportsPage: React.FC = () => {
     );
   }, [dailyRange, summaryRows]);
 
+  const dailyTotals = useMemo(() => {
+    return dailyRows.reduce(
+      (totals, row) => ({
+        transactionCount: totals.transactionCount + row.transactionCount,
+        totalSales: totals.totalSales + row.totalSales,
+        totalCash: totals.totalCash + row.totalCash,
+        totalQris: totals.totalQris + row.totalQris,
+      }),
+      {
+        transactionCount: 0,
+        totalSales: 0,
+        totalCash: 0,
+        totalQris: 0,
+      }
+    );
+  }, [dailyRows]);
+
   const ingredientUsageRows = useMemo(() => {
     return [...(recipeUsageReport?.ingredientUsage ?? [])].sort(
       (a, b) => b.estimatedHpp - a.estimatedHpp
@@ -353,22 +384,34 @@ const ReportsPage: React.FC = () => {
   };
 
   const renderDailyControls = () => (
-    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-      <label className="text-sm">
-        <span className="block text-xs text-gray-500 mb-1">Periode</span>
-        <select
-          value={dailyRangeMode}
-          onChange={(e) => setDailyRangeMode(e.target.value as DailyRangeMode)}
-          className="w-full sm:w-44 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+    <div className="flex flex-col gap-2 sm:items-end">
+      <div className="flex w-full items-end justify-end gap-2">
+        <label className="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">
+          <span className="block text-xs text-gray-500 mb-1">Periode</span>
+          <select
+            value={dailyRangeMode}
+            onChange={(e) => setDailyRangeMode(e.target.value as DailyRangeMode)}
+            className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+          >
+            <option value="thisMonth">Bulan ini</option>
+            <option value="lastMonth">Bulan kemarin</option>
+            <option value="custom">Custom date</option>
+          </select>
+        </label>
+
+        <button
+          onClick={loadDailySummary}
+          disabled={isDailyLoading || isDailyRangeInvalid}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Refresh daily summary"
+          aria-label="Refresh daily summary"
         >
-          <option value="30">30 hari terakhir</option>
-          <option value="60">60 hari terakhir</option>
-          <option value="custom">Custom date</option>
-        </select>
-      </label>
+          <RefreshCw size={15} className={isDailyLoading ? "animate-spin" : ""} />
+        </button>
+      </div>
 
       {dailyRangeMode === "custom" && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
           <label className="text-sm">
             <span className="block text-xs text-gray-500 mb-1">Mulai</span>
             <input
@@ -389,37 +432,40 @@ const ReportsPage: React.FC = () => {
           </label>
         </div>
       )}
-
-      <button
-        onClick={loadDailySummary}
-        disabled={isDailyLoading || isDailyRangeInvalid}
-        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-blue-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        <RefreshCw size={15} className={isDailyLoading ? "animate-spin" : ""} />
-        Refresh
-      </button>
     </div>
   );
 
   const renderUsageControls = () => (
-    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-      <label className="text-sm">
-        <span className="block text-xs text-gray-500 mb-1">Periode</span>
-        <select
-          value={usageRangeMode}
-          onChange={(e) => setUsageRangeMode(e.target.value as UsageRangeMode)}
-          className="w-full sm:w-44 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+    <div className="flex flex-col gap-2 sm:items-end">
+      <div className="flex w-full items-end justify-end gap-2">
+        <label className="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">
+          <span className="block text-xs text-gray-500 mb-1">Periode</span>
+          <select
+            value={usageRangeMode}
+            onChange={(e) => setUsageRangeMode(e.target.value as UsageRangeMode)}
+            className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+          >
+            <option value="today">Hari ini</option>
+            <option value="yesterday">Kemarin</option>
+            <option value="thisWeek">Minggu ini</option>
+            <option value="thisMonth">Bulan ini</option>
+            <option value="custom">Custom date</option>
+          </select>
+        </label>
+
+        <button
+          onClick={loadRecipeUsageReport}
+          disabled={isUsageLoading || isUsageRangeInvalid}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Refresh report usage"
+          aria-label="Refresh report usage"
         >
-          <option value="today">Hari ini</option>
-          <option value="yesterday">Kemarin</option>
-          <option value="thisWeek">Minggu ini</option>
-          <option value="thisMonth">Bulan ini</option>
-          <option value="custom">Custom date</option>
-        </select>
-      </label>
+          <RefreshCw size={15} className={isUsageLoading ? "animate-spin" : ""} />
+        </button>
+      </div>
 
       {usageRangeMode === "custom" && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
           <label className="text-sm">
             <span className="block text-xs text-gray-500 mb-1">Mulai</span>
             <input
@@ -440,75 +486,96 @@ const ReportsPage: React.FC = () => {
           </label>
         </div>
       )}
-
-      <button
-        onClick={loadRecipeUsageReport}
-        disabled={isUsageLoading || isUsageRangeInvalid}
-        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-blue-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        <RefreshCw size={15} className={isUsageLoading ? "animate-spin" : ""} />
-        Refresh
-      </button>
     </div>
   );
 
   const renderDailySummary = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {dailyErrorMessage ? (
-        <div className="text-center text-red-600 dark:text-red-300 py-10">
-          {dailyErrorMessage}
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="bg-gray-50 dark:bg-gray-900/60 p-3 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[74px]">
+          <div className="text-xs text-gray-600 dark:text-gray-300">
+            Total Transaksi
+          </div>
+          <div className="text-lg font-bold mt-1">
+            {dailyTotals.transactionCount}
+          </div>
         </div>
-      ) : isDailyLoading ? (
-        <div className="text-center text-gray-500 py-10">Memuat...</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs text-gray-500">
-                  Hari & Tanggal
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-gray-500">
-                  Total Transaksi
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-gray-500">
-                  Total Cash
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-gray-500">
-                  Total QRIS
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-gray-500">
-                  Total Penjualan
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {dailyRows.map((row) => (
-                <tr
-                  key={row.date}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-900"
-                >
-                  <td className="px-4 py-3 text-sm">
-                    <div className="font-medium">{formatDayLabel(row.date)}</div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold">
-                    {row.transactionCount}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right">
-                    {formatCurrency(row.totalCash)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right">
-                    {formatCurrency(row.totalQris)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold">
-                    {formatCurrency(row.totalSales)}
-                  </td>
+
+        <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 min-h-[74px]">
+          <div className="text-xs text-amber-700 dark:text-amber-300">
+            Total Penjualan
+          </div>
+          <div className="text-lg font-bold mt-1 break-words">
+            {formatCurrency(dailyTotals.totalSales)}
+          </div>
+        </div>
+
+        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800 min-h-[74px]">
+          <div className="text-xs text-green-700 dark:text-green-300">
+            Total Cash
+          </div>
+          <div className="text-lg font-bold mt-1 break-words">
+            {formatCurrency(dailyTotals.totalCash)}
+          </div>
+        </div>
+
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 min-h-[74px]">
+          <div className="text-xs text-blue-700 dark:text-blue-300">
+            Total QRIS
+          </div>
+          <div className="text-lg font-bold mt-1 break-words">
+            {formatCurrency(dailyTotals.totalQris)}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {dailyErrorMessage ? (
+          <div className="text-center text-red-600 dark:text-red-300 py-10">
+            {dailyErrorMessage}
+          </div>
+        ) : isDailyLoading ? (
+          <div className="text-center text-gray-500 py-10">Memuat...</div>
+        ) : (
+          <div className="fit-table-wrap">
+            <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="w-[34%] text-left">Hari & Tanggal</th>
+                  <th className="w-[14%] fit-table-number">Transaksi</th>
+                  <th className="w-[17%] fit-table-number">Cash</th>
+                  <th className="w-[17%] fit-table-number">QRIS</th>
+                  <th className="w-[18%] fit-table-number">Penjualan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {dailyRows.map((row) => (
+                  <tr
+                    key={row.date}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-900"
+                  >
+                    <td>
+                      <div className="font-medium">{formatDayLabel(row.date)}</div>
+                    </td>
+                    <td className="fit-table-number font-semibold">
+                      {row.transactionCount}
+                    </td>
+                    <td className="fit-table-number">
+                      {formatCurrency(row.totalCash)}
+                    </td>
+                    <td className="fit-table-number">
+                      {formatCurrency(row.totalQris)}
+                    </td>
+                    <td className="fit-table-number font-semibold">
+                      {formatCurrency(row.totalSales)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -592,23 +659,23 @@ const ReportsPage: React.FC = () => {
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 font-semibold">
                 Usage Bahan
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="fit-table-wrap">
+                <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">
+                      <th className="w-[25%] text-left">
                         Bahan
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[18%] fit-table-number">
                         Qty Base
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[18%] fit-table-number">
                         Qty Display
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[20%] fit-table-number">
                         Harga Rata-rata
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[19%] fit-table-number">
                         Estimasi HPP
                       </th>
                     </tr>
@@ -619,19 +686,19 @@ const ReportsPage: React.FC = () => {
                         key={row.ingredientId}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900"
                       >
-                        <td className="px-4 py-3 text-sm font-medium">
+                        <td className="font-medium">
                           {row.ingredientName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatQty(row.usedBaseQty, row.baseUnit)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatQty(row.usedDisplayQty, row.displayUnit)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatCurrency(row.pricePerDisplayUnit)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold">
+                        <td className="fit-table-number font-semibold">
                           {formatCurrency(row.estimatedHpp)}
                         </td>
                       </tr>
@@ -645,26 +712,26 @@ const ReportsPage: React.FC = () => {
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 font-semibold">
                 Usage Produk
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="fit-table-wrap">
+                <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs text-gray-500">
+                      <th className="w-[24%] text-left">
                         Produk
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[13%] fit-table-number">
                         Qty Terjual
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[18%] fit-table-number">
                         Total Penjualan
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[16%] fit-table-number">
                         HPP per Produk
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[17%] fit-table-number">
                         Total HPP
                       </th>
-                      <th className="px-4 py-3 text-right text-xs text-gray-500">
+                      <th className="w-[12%] fit-table-number">
                         Margin
                       </th>
                     </tr>
@@ -675,22 +742,22 @@ const ReportsPage: React.FC = () => {
                         key={row.productId || row.productName}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900"
                       >
-                        <td className="px-4 py-3 text-sm font-medium">
+                        <td className="font-medium">
                           {row.productName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatNumber(row.soldQty, 4)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold">
+                        <td className="fit-table-number font-semibold">
                           {formatCurrency(row.totalSales)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatCurrency(row.estimatedHppPerProduct)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold">
+                        <td className="fit-table-number font-semibold">
                           {formatCurrency(row.totalEstimatedHpp)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="fit-table-number">
                           {formatPercent(row.estimatedMargin)}
                         </td>
                       </tr>

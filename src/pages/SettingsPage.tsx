@@ -1236,26 +1236,26 @@ const SettingsPage: React.FC = () => {
               items={orderedIds}
               strategy={verticalListSortingStrategy}
             >
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="fit-table-wrap">
+                <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="w-10 px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[8%] text-left">
                         #
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[25%] text-left">
                         Nama
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[20%] text-left">
                         Kategori
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[17%] text-left">
                         Harga
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[12%] text-left">
                         Stok
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="w-[18%] text-right">
                         Aksi (Drag)
                       </th>
                     </tr>
@@ -1281,24 +1281,24 @@ const SettingsPage: React.FC = () => {
                             }}
                             className="hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                           >
-                            <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            <td className="text-gray-500 dark:text-gray-400">
                               {idx + 1}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <td className="font-medium text-gray-900 dark:text-gray-100">
                               {product.name}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <td className="text-gray-500 dark:text-gray-400">
                               {product.category || "-"}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <td className="text-gray-500 dark:text-gray-400">
                               {formatCurrency(product.price)}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <td className="text-gray-500 dark:text-gray-400">
                               {product.stock === -1
                                 ? "Unlimited"
                                 : product.stock}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                            <td className="fit-table-actions font-medium">
                               <button
                                 className="inline-flex items-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 mr-2 cursor-grab active:cursor-grabbing"
                                 {...attributes}
@@ -1620,20 +1620,20 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="fit-table-wrap">
+            <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[35%] text-left">
                     Bahan
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[20%] text-left">
                     Base Unit
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[25%] text-left">
                     Display Unit
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[20%] text-right">
                     Aksi
                   </th>
                 </tr>
@@ -1644,16 +1644,16 @@ const SettingsPage: React.FC = () => {
                     key={ingredient.id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-900"
                   >
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <td className="font-medium text-gray-900 dark:text-gray-100">
                       {ingredient.name}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                    <td className="text-gray-600 dark:text-gray-300">
                       {ingredient.baseUnit}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                    <td className="text-gray-600 dark:text-gray-300">
                       {ingredient.displayUnit}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium">
+                    <td className="fit-table-actions font-medium">
                       <button
                         onClick={() => openEditIngredientModal(ingredient)}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
@@ -1704,20 +1704,20 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="fit-table-wrap">
+            <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[30%] text-left">
                     Bahan
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[30%] text-left">
                     Harga Terakhir
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[22%] text-left">
                     Berlaku Sejak
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="w-[18%] text-right">
                     Aksi
                   </th>
                 </tr>
@@ -1733,20 +1733,20 @@ const SettingsPage: React.FC = () => {
                       key={ingredient.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-900"
                     >
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <td className="font-medium text-gray-900 dark:text-gray-100">
                         {ingredient.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      <td className="text-gray-600 dark:text-gray-300">
                         {latestPrice
                           ? `${formatCurrency(
                               latestPrice.pricePerDisplayUnit
                             )} / ${latestPrice.displayUnit}`
                           : "-"}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                      <td className="text-gray-600 dark:text-gray-300">
                         {latestPrice?.effectiveDate || "-"}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-medium">
+                      <td className="fit-table-actions font-medium">
                         {latestPrice && (
                           <button
                             onClick={() =>
@@ -1936,20 +1936,20 @@ const SettingsPage: React.FC = () => {
           </div>
 
           <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="fit-table-wrap">
+              <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="w-[26%] text-left">
                       Username
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="w-[28%] text-left">
                       Nama
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="w-[20%] text-left">
                       Role
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="w-[26%] text-right">
                       Aksi
                     </th>
                   </tr>
@@ -1979,20 +1979,20 @@ const SettingsPage: React.FC = () => {
                         key={u.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900"
                       >
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <td className="font-medium text-gray-900 dark:text-gray-100">
                           {u.username}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                        <td className="text-gray-600 dark:text-gray-300">
                           {u.full_name || "-"}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td>
                           <span
                             className={`px-2 py-0.5 rounded-full text-xs font-semibold ${roleBadgeClass}`}
                           >
                             {u.role}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
+                        <td className="fit-table-actions font-medium">
                           {canEditRow ? (
                             <>
                               <button
