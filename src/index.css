@@ -4,63 +4,30 @@
 
 @layer components {
   .fit-table-wrap {
-    @apply w-full overflow-hidden;
+    @apply w-full overflow-x-auto overflow-y-hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
 
   .fit-table {
-    @apply w-full table-fixed;
+    @apply w-full table-auto;
+    min-width: max-content;
   }
 
   .fit-table th,
   .fit-table td {
-    @apply whitespace-normal px-1 py-1.5 align-middle text-[9px] leading-tight sm:px-2 sm:py-2 sm:text-[11px] md:px-3 md:py-3 md:text-sm;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    @apply whitespace-nowrap px-3 py-3 align-middle text-xs leading-snug md:text-sm;
   }
 
   .fit-table th {
-    @apply whitespace-normal text-[8px] font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400 sm:text-[10px] md:whitespace-nowrap md:text-xs;
+    @apply font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400;
   }
 
   .fit-table .fit-table-actions {
-    @apply whitespace-normal text-right;
-  }
-
-  .fit-table .fit-table-actions button {
-    @apply mr-0.5 p-0.5 sm:mr-2 sm:p-1;
-  }
-
-  .fit-table .fit-table-actions svg {
-    @apply h-3.5 w-3.5 sm:h-4 sm:w-4;
+    @apply whitespace-nowrap text-right;
   }
 
   .fit-table .fit-table-number {
     @apply text-right tabular-nums;
-    overflow-wrap: normal;
-    white-space: nowrap;
-    word-break: normal;
-    font-size: 8.5px;
-    line-height: 1.1;
-  }
-
-  @screen sm {
-    .fit-table .fit-table-number {
-      font-size: 10px;
-    }
-  }
-
-  @screen md {
-    .fit-table {
-      @apply table-auto;
-    }
-
-    .fit-table .fit-table-actions {
-      @apply whitespace-nowrap;
-    }
-
-    .fit-table .fit-table-number {
-      font-size: 0.875rem;
-      line-height: 1.25rem;
-    }
   }
 }
