@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CalendarDays, RefreshCw } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   fetchDailySalesSummaryOnline,
@@ -385,13 +385,17 @@ const ReportsPage: React.FC = () => {
 
   const renderDailyControls = () => (
     <div className="flex flex-col gap-2 sm:items-end">
-      <div className="flex w-full items-end justify-end gap-2">
-        <label className="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">
-          <span className="block text-xs text-gray-500 mb-1">Periode</span>
+      <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:w-48 sm:flex-none">
+          <span className="sr-only">Periode Daily Summary</span>
+          <CalendarDays
+            size={16}
+            className="shrink-0 text-gray-400"
+          />
           <select
             value={dailyRangeMode}
             onChange={(e) => setDailyRangeMode(e.target.value as DailyRangeMode)}
-            className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+            className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-700 outline-none dark:text-gray-100"
           >
             <option value="thisMonth">Bulan ini</option>
             <option value="lastMonth">Bulan kemarin</option>
@@ -400,13 +404,14 @@ const ReportsPage: React.FC = () => {
         </label>
 
         <button
+          type="button"
           onClick={loadDailySummary}
           disabled={isDailyLoading || isDailyRangeInvalid}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           title="Refresh daily summary"
           aria-label="Refresh daily summary"
         >
-          <RefreshCw size={15} className={isDailyLoading ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={isDailyLoading ? "animate-spin" : ""} />
         </button>
       </div>
 
@@ -437,13 +442,17 @@ const ReportsPage: React.FC = () => {
 
   const renderUsageControls = () => (
     <div className="flex flex-col gap-2 sm:items-end">
-      <div className="flex w-full items-end justify-end gap-2">
-        <label className="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">
-          <span className="block text-xs text-gray-500 mb-1">Periode</span>
+      <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:w-48 sm:flex-none">
+          <span className="sr-only">Periode Report Usage</span>
+          <CalendarDays
+            size={16}
+            className="shrink-0 text-gray-400"
+          />
           <select
             value={usageRangeMode}
             onChange={(e) => setUsageRangeMode(e.target.value as UsageRangeMode)}
-            className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+            className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-700 outline-none dark:text-gray-100"
           >
             <option value="today">Hari ini</option>
             <option value="yesterday">Kemarin</option>
@@ -454,13 +463,14 @@ const ReportsPage: React.FC = () => {
         </label>
 
         <button
+          type="button"
           onClick={loadRecipeUsageReport}
           disabled={isUsageLoading || isUsageRangeInvalid}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           title="Refresh report usage"
           aria-label="Refresh report usage"
         >
-          <RefreshCw size={15} className={isUsageLoading ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={isUsageLoading ? "animate-spin" : ""} />
         </button>
       </div>
 

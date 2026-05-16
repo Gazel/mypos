@@ -8,24 +8,43 @@
   }
 
   .fit-table {
-    @apply w-full table-auto;
+    @apply w-full table-fixed;
   }
 
   .fit-table th,
   .fit-table td {
-    @apply whitespace-normal break-words px-2 py-2 align-middle text-[11px] leading-snug sm:px-3 sm:py-3 sm:text-xs md:text-sm;
+    @apply whitespace-normal px-1 py-1.5 align-middle text-[9px] leading-tight sm:px-2 sm:py-2 sm:text-[11px] md:px-3 md:py-3 md:text-sm;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .fit-table th {
-    @apply whitespace-nowrap text-[10px] font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400 sm:text-xs;
-    width: auto !important;
+    @apply whitespace-normal text-[8px] font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400 sm:text-[10px] md:whitespace-nowrap md:text-xs;
   }
 
   .fit-table .fit-table-actions {
-    @apply whitespace-nowrap text-right;
+    @apply whitespace-normal text-right;
+  }
+
+  .fit-table .fit-table-actions button {
+    @apply mr-0.5 p-0.5 sm:mr-2 sm:p-1;
+  }
+
+  .fit-table .fit-table-actions svg {
+    @apply h-3.5 w-3.5 sm:h-4 sm:w-4;
   }
 
   .fit-table .fit-table-number {
     @apply text-right tabular-nums;
+  }
+
+  @screen md {
+    .fit-table {
+      @apply table-auto;
+    }
+
+    .fit-table .fit-table-actions {
+      @apply whitespace-nowrap;
+    }
   }
 }
