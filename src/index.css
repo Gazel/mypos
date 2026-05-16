@@ -36,6 +36,17 @@
 
   .fit-table .fit-table-number {
     @apply text-right tabular-nums;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+    font-size: 8.5px;
+    line-height: 1.1;
+  }
+
+  @screen sm {
+    .fit-table .fit-table-number {
+      font-size: 10px;
+    }
   }
 
   @screen md {
@@ -45,6 +56,11 @@
 
     .fit-table .fit-table-actions {
       @apply whitespace-nowrap;
+    }
+
+    .fit-table .fit-table-number {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
     }
   }
 }

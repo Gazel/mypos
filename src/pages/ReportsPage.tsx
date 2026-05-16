@@ -140,6 +140,21 @@ function formatDayLabel(dateKey: string) {
   }).format(dateKeyToDate(dateKey));
 }
 
+function formatCompactDayLabel(dateKey: string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  }).format(dateKeyToDate(dateKey));
+}
+
+function formatTableCurrency(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function formatNumber(value: number, maximumFractionDigits = 2) {
   return new Intl.NumberFormat("id-ID", {
     maximumFractionDigits,
@@ -551,11 +566,20 @@ const ReportsPage: React.FC = () => {
             <table className="fit-table divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="w-[34%] text-left">Hari & Tanggal</th>
-                  <th className="w-[14%] fit-table-number">Transaksi</th>
-                  <th className="w-[17%] fit-table-number">Cash</th>
-                  <th className="w-[17%] fit-table-number">QRIS</th>
-                  <th className="w-[18%] fit-table-number">Penjualan</th>
+                  <th className="w-[24%] text-left sm:w-[34%]">
+                    <span className="sm:hidden">Tanggal</span>
+                    <span className="hidden sm:inline">Hari & Tanggal</span>
+                  </th>
+                  <th className="w-[10%] fit-table-number sm:w-[14%]">
+                    <span className="sm:hidden">Trx</span>
+                    <span className="hidden sm:inline">Transaksi</span>
+                  </th>
+                  <th className="w-[21%] fit-table-number sm:w-[17%]">Cash</th>
+                  <th className="w-[21%] fit-table-number sm:w-[17%]">QRIS</th>
+                  <th className="w-[24%] fit-table-number sm:w-[18%]">
+                    <span className="sm:hidden">Total</span>
+                    <span className="hidden sm:inline">Penjualan</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -565,19 +589,26 @@ const ReportsPage: React.FC = () => {
                     className="hover:bg-gray-50 dark:hover:bg-gray-900"
                   >
                     <td>
-                      <div className="font-medium">{formatDayLabel(row.date)}</div>
+                      <div className="font-medium">
+                        <span className="sm:hidden">
+                          {formatCompactDayLabel(row.date)}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {formatDayLabel(row.date)}
+                        </span>
+                      </div>
                     </td>
                     <td className="fit-table-number font-semibold">
                       {row.transactionCount}
                     </td>
                     <td className="fit-table-number">
-                      {formatCurrency(row.totalCash)}
+                      {formatTableCurrency(row.totalCash)}
                     </td>
                     <td className="fit-table-number">
-                      {formatCurrency(row.totalQris)}
+                      {formatTableCurrency(row.totalQris)}
                     </td>
                     <td className="fit-table-number font-semibold">
-                      {formatCurrency(row.totalSales)}
+                      {formatTableCurrency(row.totalSales)}
                     </td>
                   </tr>
                 ))}
@@ -706,10 +737,10 @@ const ReportsPage: React.FC = () => {
                           {formatQty(row.usedDisplayQty, row.displayUnit)}
                         </td>
                         <td className="fit-table-number">
-                          {formatCurrency(row.pricePerDisplayUnit)}
+                          {formatTableCurrency(row.pricePerDisplayUnit)}
                         </td>
                         <td className="fit-table-number font-semibold">
-                          {formatCurrency(row.estimatedHpp)}
+                          {formatTableCurrency(row.estimatedHpp)}
                         </td>
                       </tr>
                     ))}
@@ -759,13 +790,13 @@ const ReportsPage: React.FC = () => {
                           {formatNumber(row.soldQty, 4)}
                         </td>
                         <td className="fit-table-number font-semibold">
-                          {formatCurrency(row.totalSales)}
+                          {formatTableCurrency(row.totalSales)}
                         </td>
                         <td className="fit-table-number">
-                          {formatCurrency(row.estimatedHppPerProduct)}
+                          {formatTableCurrency(row.estimatedHppPerProduct)}
                         </td>
                         <td className="fit-table-number font-semibold">
-                          {formatCurrency(row.totalEstimatedHpp)}
+                          {formatTableCurrency(row.totalEstimatedHpp)}
                         </td>
                         <td className="fit-table-number">
                           {formatPercent(row.estimatedMargin)}
