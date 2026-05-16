@@ -10,17 +10,19 @@
   }
 
   .fit-table {
-    @apply w-full table-auto;
+    @apply table-auto;
+    width: max-content;
     min-width: max-content;
   }
 
   .fit-table th,
   .fit-table td {
-    @apply whitespace-nowrap px-3 py-3 align-middle text-xs leading-snug md:text-sm;
+    @apply whitespace-nowrap px-2 py-3 align-middle text-xs leading-snug md:px-3 md:text-sm;
   }
 
   .fit-table th {
     @apply font-medium uppercase tracking-normal text-gray-500 dark:text-gray-400;
+    width: auto !important;
   }
 
   .fit-table .fit-table-actions {
