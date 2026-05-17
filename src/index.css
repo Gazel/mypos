@@ -32,4 +32,11 @@
   .fit-table .fit-table-number {
     @apply text-right tabular-nums;
   }
+
+  @screen md {
+    .fit-table {
+      @apply w-full;
+      min-width: 100%;
+    }
+  }
 }
